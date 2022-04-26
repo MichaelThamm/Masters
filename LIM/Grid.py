@@ -705,23 +705,13 @@ class Grid(LimMotor):
         if round(diffUpperSlotHeightDims, 12) != 0:
             print(f'flag - slot height: {diffUpperSlotHeightDims}')
             spatialDomainFlag = True
-        # Check if all regions are mec regions
-        if self.allMecRegions:
-            isYokeAtUpperVac = True
-            isBIAtUpperVac = True
-        # Check Yoke and Back Iron since they can be the last region next to upperVac
-        else:
-            isYokeAtUpperVac = list(self.getFullRegionDict())[1:-1].index('mec') == len(list(self.getFullRegionDict())[1:-1]) - 1
-            isBIAtUpperVac = list(self.getFullRegionDict())[1:-1].index('bi') == len(list(self.getFullRegionDict())[1:-1]) - 1
-
         # Check if yoke is next to upperVac, otherwise index out of bounds will occur
-        diffYokeDims = self.hy - yUpperPos(self.yIndexesYoke) - self.matrix[self.yIndexesYoke[0]][xIdx].y
+        diffYokeDims = self.hy - (yUpperPos(self.yIndexesYoke) - self.matrix[self.yIndexesYoke[0]][xIdx].y)
         if round(diffYokeDims, 12) != 0:
             print(f'flag - yoke: {diffYokeDims}')
             spatialDomainFlag = True
-
         # Check if yoke is next to upperVac, otherwise index out of bounds will occur
-        diffBackIronDims = self.bi - yUpperPos(self.yIndexesBackIron) - self.matrix[self.yIndexesBackIron[0]][xIdx].y
+        diffBackIronDims = self.bi - (yUpperPos(self.yIndexesBackIron) - self.matrix[self.yIndexesBackIron[0]][xIdx].y)
         if round(diffBackIronDims, 12) != 0:
             print(f'flag - blade rotor: {diffBackIronDims}')
             spatialDomainFlag = True

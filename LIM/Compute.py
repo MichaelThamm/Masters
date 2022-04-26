@@ -750,98 +750,37 @@ class Model(Grid):
     def __buildMatAB(self):
 
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
-
         yBoundaryIncludeMec = self.__getYboundaryIncludeMEC()
 
-        # TODO There is potential here to use concurrent.futures.ProcessPoolExecutor since the indexing of the matrix A does not depend on previous boundary conditions
-        # TODO This will require me to change the way I pass the nLoop and matBCount from boundary condition to boundary condition. Instead these need to be constants
-        hmMec = True
-        cnt, hmCnt, mecCnt = 0, 0, 0
-        iY1, nextY1 = 0, yBoundaryIncludeMec[0] + 1
+        cnt, mecCnt = 0, 0, 0
         for region in self.getFullRegionDict():
-            if region.split('_')[0] != 'vac':
-                prevReg, nextReg = self.getLastAndNextRegionName(region)
-                if nextReg != None:
-                    if nextReg.split('_')[0] != 'vac':
-                        _, nextnextReg = self.getLastAndNextRegionName(nextReg)
-                for bc in self.getFullRegionDict()[region]['bc'].split(', '):
+            for bc in self.getFullRegionDict()[region]['bc'].split(', '):
 
-                    # Mec region calculation
-                    if bc == 'mec':
-                        node = 0
-                        iY1, iY2 = self.yIndexesMEC[0], self.yIndexesMEC[-1]
-                        i, j = iY1, 0
-                        while i < iY2 + 1:
-                            while j < self.ppL:
-                                params = {'i': i, 'j': j, 'node': node, 'time_plex': time_plex,
-                                          'listBCInfo': self.__boundaryInfo(iY1, iY2, bc),
-                                          'mecRegCountOffset': self.mecRegionsIndex[mecCnt]}
-                                if not self.allMecRegions:
-                                    params['hmRegCountOffset1'] = self.hmRegionsIndex[hmCnt]
-                                    params['removed_bn'] = True if prevReg.split('_')[0] == 'vac' else False
-                                    params['hmRegCountOffset2'] = self.hmRegionsIndex[hmCnt + 1]
-                                    params['removed_an'] = True if nextReg.split('_')[0] == 'vac' else False
+                # Mec region calculation
+                if bc == 'mec':
+                    node = 0
+                    iY1, iY2 = self.yIndexesMEC[0], self.yIndexesMEC[-1]
+                    i, j = iY1, 0
+                    while i < iY2 + 1:
+                        while j < self.ppL:
+                            params = {'i': i, 'j': j, 'node': node, 'time_plex': time_plex,
+                                      'listBCInfo': self.__boundaryInfo(iY1, iY2, bc),
+                                      'mecRegCountOffset': self.mecRegionsIndex[mecCnt]}
 
-                                # TODO We can try to cache these kind of functions for speed
-                                getattr(self, bc)(**params)
-
-                                node += 1
-                                j += 1
-                            j = 0
-                            i += 1
-                        # Increment the indexing after finishing with the mec region
-                        self.__setCurrColCount(0, 0)
-                        self.nLoop += node
-                        self.matBCount += node
-                        nextY1 = iY2 + 1
-                        cnt += 1
-                        hmCnt += 1
-
-                    # All boundary conditions loop through N harmonics except mec
-                    else:
-                        # Loop through harmonics and calculate each boundary condition
-                        if bc == 'hmHm':
-                            params = {'listBCInfo': self.__boundaryInfo(iY1, None, bc),
-                                      'RegCountOffset1': self.hmRegionsIndex[hmCnt],
-                                      'RegCountOffset2': self.hmRegionsIndex[hmCnt+1],
-                                      'remove_an': True if nextReg.split('_')[0] == 'vac' else False,
-                                      'remove_bn': True if prevReg.split('_')[0] == 'vac' else False}
-
-                        elif bc == 'mecHm':
-                            iY1 = self.yIndexesMEC[0] if hmMec else self.yIndexesMEC[-1]
-                            params = {'iY': iY1,
-                                      'listBCInfo': self.__boundaryInfo(iY1, None, 'hmMec' if hmMec else bc),
-                                      'hmRegCountOffset': self.hmRegionsIndex[hmCnt],
-                                      'mecRegCountOffset': self.mecRegionsIndex[mecCnt],
-                                      'removed_an': True if not hmMec and nextReg.split('_')[0] == 'vac' else False,
-                                      'removed_bn': True if hmMec and prevReg.split('_')[0] == 'vac' else False,
-                                      'lowerUpper': 'lower' if hmMec else 'upper'}
-                            hmMec = not hmMec
-
-                        for nHM in self.n:
-                            params['nHM'] = nHM
                             # TODO We can try to cache these kind of functions for speed
                             getattr(self, bc)(**params)
 
-                        # This conditional sets all the indices for the loop
-                        self.__setCurrColCount(0, 0)
-                        if bc != 'mecHm' or (bc == 'mecHm' and hmMec):
-                            # Increment cnt for all hmHm boundaries
-                            if bc == 'hmHm':
-                                hmCnt += 1
-                                if nextReg != 'mec' and nextnextReg.split('_')[0] != 'vac':
-                                    cnt += 1
-                            # Increment mecCnt only if leaving the mec region
-                            if bc == 'mecHm' and hmMec:
-                                cnt += 1
-                                if nextReg.split('_')[0] != 'vac':
-                                    nextY1 = yBoundaryIncludeMec[cnt] + 1
-                                    cnt += 1
-                                mecCnt += 1
-                            if nextReg.split('_')[0] != 'vac':
-                                iY1 = nextY1
-                                plusOneVal = yBoundaryIncludeMec[cnt] + 1
-                                nextY1 = plusOneVal
+                            node += 1
+                            j += 1
+                        j = 0
+                        i += 1
+                    # Increment the indexing after finishing with the mec region
+                    self.__setCurrColCount(0, 0)
+                    self.nLoop += node
+                    self.matBCount += node
+                    nextY1 = iY2 + 1
+                    cnt += 1
+                    hmCnt += 1
 
         print('Asize: ', self.matrixA.shape, self.matrixA.size)
         print('Bsize: ', self.matrixB.shape)
