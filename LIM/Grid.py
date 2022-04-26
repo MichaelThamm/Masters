@@ -557,10 +557,6 @@ class Grid(LimMotor):
                 else:
                     self.matrix[i][j].MMF = 0.0
 
-                # TODO - This is temp
-                if j in self.outLower_slotsC[1]:
-                    self.matrix[i][j].MMF *= 1
-
                 j += 1
             j = 0
             i += 1
@@ -575,20 +571,7 @@ class Grid(LimMotor):
         # Create the starting index for each region in the columns of matrix A
         regionIndex, hmCount, mecCount = 0, 0, 0
         for index, name in self.allRegions.items():
-            if index in self.hmRegions:
-                # Dirichlet boundaries have half the unknown coefficients
-                if self.hmRegions[index].split('_')[0] == 'vac':
-                    self.hmRegionsIndex[hmCount] = regionIndex
-                    regionIndex += len(self.n)
-                else:
-                    self.hmRegionsIndex[hmCount] = regionIndex
-                    regionIndex += 2 * len(self.n)
-                hmCount += 1
 
-                if index == list(self.hmRegions)[-1]:
-                    self.hmRegionsIndex[-1] = regionIndex
-
-        # TODO the for loop excluded += self.mecRegionLength
             if index in self.mecRegions:
                 self.mecRegionsIndex[mecCount] = regionIndex
                 regionIndex += self.mecRegionLength

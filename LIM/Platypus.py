@@ -195,7 +195,6 @@ class EncoderDecoder(object):
 
         errors = self.encodedAttributes['errorDict']
         matrix = self.encodedAttributes['matrix']
-        hmUnknowns = self.encodedAttributes['hmUnknownsList']
 
         # ErrorDict reconstruction
         self.encodedAttributes['errorDict'] = TransformedDict.buildFromJson(errors)
@@ -211,9 +210,6 @@ class EncoderDecoder(object):
         rawArrShape = self.rawModel.matrix.shape
         constructedMatrix = constructedMatrix.reshape(rawArrShape[0], rawArrShape[1])
         self.encodedAttributes['matrix'] = constructedMatrix
-
-        # HmUnknownsList Reconstruction
-        self.encodedAttributes['hmUnknownsList'] = {i: Region.rebuildFromJson(jsonObject=hmUnknowns[i]) for i in self.encodedAttributes['hmRegions']}
 
         self.rebuiltModel = Model.buildFromJson(jsonObject=self.encodedAttributes)
 
@@ -272,7 +268,7 @@ def platypus(n, run=False):
     axs[2].set_title('mass obj')
     axs[3].scatter(range(1, cnt), [x[0, 1] for x in plotResults])
     axs[3].set_title('thrust obj')
-    plt.scatter(range(1, cnt), [x[1, 1] for x in pltResults])
+    plt.scatter(range(1, cnt), [x[1, 1] for x in plotResults])
     # plt.scatter(range(1, cnt), [x[1, 1] for x in plotResults])
     plt.xlabel('Generations')
     plt.ylabel('Thrust Objective Value')
