@@ -303,11 +303,6 @@ def main():
     # Efficient to simulate at pixDiv >= 10, but fastest at pixDiv = 2
     pixelDivisions = 5
 
-    lowDiscrete = 50
-    # n list does not include n = 0 harmonic since the average of the complex fourier series is 0,
-    # since there are no magnets or anything constantly creating a magnetic field when input is off
-    n = range(-lowDiscrete, lowDiscrete + 1)
-    n = np.delete(n, len(n)//2, 0)
     slots = 16
     poles = 6
     wt, ws = 6 / 1000, 10 / 1000
@@ -315,7 +310,7 @@ def main():
     endTeeth = 2 * (5/3 * wt)
     length = ((slots - 1) * slotpitch + ws) + endTeeth
 
-    platypus(n, run=False)
+    # platypus(n, run=False)
 
     # This value defines how small the mesh is at [border, border+1].
     # Ex) [4, 2] means that the mesh at the border is 1/4 the mesh far away from the border
@@ -352,11 +347,9 @@ def main():
     choiceRegionCfg = regionCfg4
 
     # Object for the model design, grid, and matrices
-    model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
+    model = Model.buildFromScratch(slots=slots, poles=poles, length=length,
                                    pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
                                    meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                                   hmRegions=
-                                   choiceRegionCfg['hmRegions'],
                                    mecRegions=
                                    choiceRegionCfg['mecRegions'],
                                    errorTolerance=1e-14,

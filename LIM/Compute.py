@@ -93,23 +93,12 @@ class Model(Grid):
         self.matACount += 1
         self.matBCount += 1
 
-    def mec(self, i, j, node, time_plex, listBCInfo, mecRegCountOffset,
-            hmRegCountOffset1=None, hmRegCountOffset2=None, removed_an=None, removed_bn=None):
+    def mec(self, i, j, node, time_plex, listBCInfo, mecRegCountOffset):
 
-        # TODO finish looking through buildMatAB
         hb1, urSigma1, hb2, urSigma2 = listBCInfo
         lNode, rNode = self.neighbourNodes(j)
-        if i == 0:
-            _, vacResY = self.matrix[i, j].getReluctance(self, isVac=True)
-            northRelDenom = self.matrix[i, j].Ry + self.matrix[i + 1, j].Ry
-            southRelDenom = self.matrix[i, j].Ry + vacResY
-        elif i == self.ppH - 1:
-            _, vacResY = self.matrix[i, j].getReluctance(self, isVac=True)
-            northRelDenom = self.matrix[i, j].Ry + vacResY
-            southRelDenom = self.matrix[i, j].Ry + self.matrix[i - 1, j].Ry
-        else:
-            northRelDenom = self.matrix[i, j].Ry + self.matrix[i + 1, j].Ry
-            southRelDenom = self.matrix[i, j].Ry + self.matrix[i - 1, j].Ry
+        northRelDenom = self.matrix[i, j].Ry + self.matrix[i + 1, j].Ry
+        southRelDenom = self.matrix[i, j].Ry + self.matrix[i - 1, j].Ry
         eastRelDenom = self.matrix[i, j].Rx + self.matrix[i, rNode].Rx
         westRelDenom = self.matrix[i, j].Rx + self.matrix[i, lNode].Rx
 
@@ -124,63 +113,19 @@ class Model(Grid):
 
         # Bottom layer of the mesh
         if i == self.yIndexesMEC[0]:
-            if not self.allMecRegions:
-                self.__setCurrColCount(0, 0)
-                # South Node
-                for nHM in self.n:
-                    wn = 2 * nHM * pi / self.Tper
-                    lambdaN1 = self.__lambda_n(wn, urSigma1)
-                    anCoeff, bnCoeff = self.__preEqn21(lambdaN1, wn, self.matrix[i, j].x,
-                                                       self.matrix[i, j].x + self.matrix[i, j].lx, hb1)
-
-                    self.matrixA[self.matACount + node, hmRegCountOffset1 + self.currColCount] = anCoeff  # an
-                    if not removed_bn:
-                        self.matrixA[self.matACount + node, hmRegCountOffset1 + 1 + self.currColCount] = bnCoeff  # bn
-
-                    self.incrementCurrColCnt(False, removed_bn)
-
-                # North Node
-                self.matrixA[self.matACount + node, northIdx] = - time_plex / northRelDenom
-
-                # Current Node
-                self.matrixA[self.matACount + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom)
-
-            else:
-                # North Node
-                self.matrixA[self.matACount + node, northIdx] = - time_plex / northRelDenom
-                # Current Node
-                self.matrixA[self.matACount + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom + 1 / southRelDenom)
+            # TODO What happens to south node here
+            # North Node
+            self.matrixA[self.matACount + node, northIdx] = - time_plex / northRelDenom
+            # Current Node
+            self.matrixA[self.matACount + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom + 1 / southRelDenom)
 
         # Top layer of the mesh
         elif i == self.yIndexesMEC[-1]:
-            if not self.allMecRegions:
-                self.__setCurrColCount(0, 0)
-                # North Node
-                for nHM in self.n:
-                    wn = 2 * nHM * pi / self.Tper
-                    lambdaN2 = self.__lambda_n(wn, urSigma2)
-                    anCoeff, bnCoeff = self.__preEqn21(lambdaN2, wn, self.matrix[i, j].x,
-                                                       self.matrix[i, j].x + self.matrix[i, j].lx, hb2)
-
-                    if removed_an:
-                        self.matrixA[self.matACount + node, hmRegCountOffset2 + self.currColCountUpper] = - bnCoeff  # bn
-                    else:
-                        self.matrixA[self.matACount + node, hmRegCountOffset2 + self.currColCountUpper] = - anCoeff  # an
-                        self.matrixA[self.matACount + node, hmRegCountOffset2 + 1 + self.currColCountUpper] = - bnCoeff  # bn
-
-                    self.incrementCurrColCnt(removed_an, False)
-
-                # South Node
-                self.matrixA[self.matACount + node, southIdx] = - time_plex / southRelDenom
-
-                # Current Node
-                self.matrixA[self.matACount + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / southRelDenom)
-
-            else:
-                # South Node
-                self.matrixA[self.matACount + node, southIdx] = - time_plex / southRelDenom
-                # Current Node
-                self.matrixA[self.matACount + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom + 1 / southRelDenom)
+            # TODO What happens to the north node here
+            # South Node
+            self.matrixA[self.matACount + node, southIdx] = - time_plex / southRelDenom
+            # Current Node
+            self.matrixA[self.matACount + node, currIdx] = time_plex * (1 / westRelDenom + 1 / eastRelDenom + 1 / northRelDenom + 1 / southRelDenom)
 
         else:
             # North Node

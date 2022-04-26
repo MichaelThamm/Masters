@@ -39,19 +39,9 @@ class Grid(LimMotor):
         self.Spacing = kwargs['pixelSpacing']
         self.Cspacing = kwargs['canvasSpacing'] / self.H
         self.meshDensity = kwargs['meshDensity']
-        self.n = kwargs['n']
-        self.hmRegions = kwargs['hmRegions']
         self.mecRegions = kwargs['mecRegions']
-        self.allMecRegions = not self.hmRegions
-        combinedList = list(self.hmRegions.items()) + list(self.mecRegions.items())
-        self.allRegions = dict(sorted(combinedList, key=lambda x: x[0]))
 
-        if self.allMecRegions:
-            self.hmRegionsIndex = np.zeros(len(self.hmRegions), dtype=np.int32)
-            self.mecRegionsIndex = np.zeros(len(self.mecRegions) + 1, dtype=np.int32)
-        else:
-            self.hmRegionsIndex = np.zeros(len(self.hmRegions) + 1, dtype=np.int32)
-            self.mecRegionsIndex = np.zeros(len(self.mecRegions), dtype=np.int32)
+        self.mecRegionsIndex = np.zeros(len(self.mecRegions) + 1, dtype=np.int32)
         self.lenUnknowns = 0
 
         self.yIndexesVacLower, self.yIndexesVacUpper = [], []
@@ -89,19 +79,14 @@ class Grid(LimMotor):
         if self.ppSlotHeight % 2 != 0:
             self.ppSlotHeight += 1
 
-        # Determine pixels per harmonic region
-        self.ppHM = 0
-        for each in self.hmRegions.values():
-            if each.split('_')[0] != 'vac':
-                self.ppHM += self.__dict__[self.getFullRegionDict()[each]['pp']]
         self.ppMEC = 0
         for core in self.mecRegions.values():
             for pixel in self.getFullRegionDict()[core]['pp'].split(', '):
                 self.ppMEC += self.ppSlotHeight // 2 if pixel == 'ppSlotHeight' else self.__dict__[pixel]
 
-        self.ppH = self.ppMEC + self.ppHM
+        self.ppH = self.ppMEC
         self.ppL = (self.slots - 1) * self.ppSlotpitch + self.ppSlot + 2 * self.ppEndTooth + 2 * self.ppAirBuffer
-        self.matrix = np.array([[type('', (Node,), {}) for _ in range(self.ppL)] for _ in range(self.ppMEC + self.ppHM)])
+        self.matrix = np.array([[type('', (Node,), {}) for _ in range(self.ppL)] for _ in range(self.ppMEC)])
 
         self.toothArray, self.coilArray, self.bufferArray = np.zeros((3, 1), dtype=np.int16)
         self.removeLowerCoils, self.removeUpperCoils = np.zeros((2, 1), dtype=np.int16)
@@ -153,12 +138,7 @@ class Grid(LimMotor):
             if region.split('_')[0] != 'vac':
                 for idx in self.getFullRegionDict()[region]['idx'].split(', '):
                     self.__dict__[idx] = list(range(offsetList[innerCnt][0], offsetList[innerCnt][1]))
-                    if region != 'vac_upper':
-                        self.yBoundaryList.append(self.__dict__[idx][-1])
-                    if region in self.hmRegions.values():
-                        self.yIndexesHM.extend(self.__dict__[idx])
-                    elif region in self.mecRegions.values():
-                        self.yIndexesMEC.extend(self.__dict__[idx])
+                    self.yIndexesMEC.extend(self.__dict__[idx])
                     innerCnt += 1
 
         # Thrust of the entire integration region
@@ -569,15 +549,15 @@ class Grid(LimMotor):
     def setRegionIndices(self):
 
         # Create the starting index for each region in the columns of matrix A
-        regionIndex, hmCount, mecCount = 0, 0, 0
-        for index, name in self.allRegions.items():
+        regionIndex, mecCount = 0, 0
+        for index, name in self.mecRegions.items():
 
             if index in self.mecRegions:
                 self.mecRegionsIndex[mecCount] = regionIndex
                 regionIndex += self.mecRegionLength
                 mecCount += 1
 
-                if index == list(self.mecRegions)[-1] and self.allMecRegions:
+                if index == list(self.mecRegions)[-1]:
                     self.mecRegionsIndex[-1] = regionIndex
 
     def getFullRegionDict(self):
@@ -585,7 +565,7 @@ class Grid(LimMotor):
         config.read('Properties.ini')
         regDict = {}
 
-        for index, name in self.allRegions.items():
+        for index, name in self.mecRegions.items():
             regDict[name] = {'pp': config.get('PP', name),
                                'bc': config.get('BC', name),
                                'idx': config.get('Y_IDX', name),
@@ -802,7 +782,7 @@ class Node(object):
 
         vacHeight = model.vac/model.ppVac
         ResX = self.lx / (2 * uo * self.ur * self.Szy)
-        if model.allMecRegions and self.yIndex in [0, model.ppH - 1]:  #  MEC non-continuous boundary
+        if self.yIndex in [0, model.ppH - 1]:  #  MEC non-continuous boundary
             ResY = np.inf
         elif isVac:  # Create a fake vac node
             ResY = vacHeight / (2 * uo * self.ur * self.Sxz)
