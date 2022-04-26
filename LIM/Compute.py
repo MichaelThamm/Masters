@@ -851,37 +851,19 @@ class Model(Grid):
 
     def finalizeCompute(self):
 
-        print('region indexes: ', self.hmRegionsIndex, self.mecRegionsIndex, self.mecRegionLength)
+        print('region indexes: ', self.mecRegionsIndex, self.mecRegionLength)
 
         self.__buildMatAB()
 
         # Solve for the unknown matrix X
         self.matrixX, preProcessError_matX = self.__linalg_lu()
 
-        self.hmMatrixX = [self.matrixX[self.hmIdxs[i]] for i in range(len(self.hmIdxs))]
         self.mecMatrixX = [self.matrixX[self.mecIdxs[i]] for i in range(len(self.mecIdxs))]
-        self.hmMatrixX = np.array(self.hmMatrixX, dtype=np.cdouble)
         self.mecMatrixX = np.array(self.mecMatrixX, dtype=np.cdouble)
 
         return preProcessError_matX
 
     def updateGrid(self, iErrorInX, showAirgapPlot=False, invertY=False, showUnknowns=False):
-
-        # Unknowns in HM regions
-        matIdx = 0
-        for i in self.hmRegions:
-            # lower boundary
-            if i == list(self.hmRegions)[0]:
-                self.hmUnknownsList[i].an = self.hmMatrixX[:len(self.n)]
-                matIdx += len(self.n)
-            # upper boundary
-            elif i == list(self.hmRegions)[-1]:
-                self.hmUnknownsList[i].bn = self.hmMatrixX[-len(self.n):]
-                matIdx += len(self.n)
-            else:
-                self.hmUnknownsList[i].an = self.hmMatrixX[matIdx: matIdx + 2 * len(self.n): 2]
-                self.hmUnknownsList[i].bn = self.hmMatrixX[matIdx + 1: matIdx + 2 * len(self.n): 2]
-                matIdx += 2 * len(self.n)
 
         # Unknowns in MEC regions
         for mecCnt, val in enumerate(self.mecRegions):
@@ -898,11 +880,6 @@ class Model(Grid):
 
         # Solve for B in the mesh
         i, j = 0, 0
-        priorToCore, _ = self.getLastAndNextRegionName('mec')
-        if self.allMecRegions or priorToCore.split('_')[0] == 'vac':
-            regCnt = list(self.mecRegions)[0]
-        else:
-            regCnt = list(self.hmUnknownsList)[1:-1][0]
         while i < self.ppH:
             while j < self.ppL:
 
@@ -912,74 +889,21 @@ class Model(Grid):
 
                     # Bottom layer of the MEC
                     if i == self.yIndexesMEC[0]:
-                        if self.allMecRegions:
-                            # Eqn 16
-                            self.matrix[i, j].phiYp = self.__postEqn16to17(self.matrix[i + 1, j].Yk, self.matrix[i, j].Yk,
-                                                                           self.matrix[i + 1, j].Ry, self.matrix[i, j].Ry)
-                            # Eqn 17
-                            self.matrix[i, j].phiYn = self.__postEqn16to17(self.matrix[i, j].Yk, 0,
-                                                                           self.matrix[i, j].Ry, np.inf)
-                        else:
-                            isNextToLowerVac = regCnt - 1 == list(self.hmUnknownsList)[0]
-                            ur1, sigma1 = self.__getLowerUrSigma(i)
-                            urSigma1 = ur1 * sigma1
-                            nCnt, Flux_ySum = 0, 0
-                            for nHM in self.n:
-
-                                wn = 2 * nHM * pi / self.Tper
-                                lambdaN1 = self.__lambda_n(wn, urSigma1)
-                                if isNextToLowerVac:
-                                    an = self.hmUnknownsList[regCnt - 1].an[nCnt]
-                                    bn = 0
-                                else:
-                                    an = self.hmUnknownsList[regCnt - 1].an[nCnt]
-                                    bn = self.hmUnknownsList[regCnt - 1].bn[nCnt]
-                                Flux_ySum += self.__postEqn21(lambdaN1, wn, self.matrix[i, j].x,
-                                                              self.matrix[i, j].x + self.matrix[i, j].lx,
-                                                              self.matrix[i, j].y,
-                                                              an, bn)
-                                nCnt += 1
-
-                            # Eqn 16
-                            self.matrix[i, j].phiYp = self.__postEqn16to17(self.matrix[i + 1, j].Yk, self.matrix[i, j].Yk,
-                                                                           self.matrix[i + 1, j].Ry, self.matrix[i, j].Ry)
-                            # Eqn 17
-                            self.matrix[i, j].phiYn = Flux_ySum
+                        # Eqn 16
+                        self.matrix[i, j].phiYp = self.__postEqn16to17(self.matrix[i + 1, j].Yk, self.matrix[i, j].Yk,
+                                                                       self.matrix[i + 1, j].Ry, self.matrix[i, j].Ry)
+                        # Eqn 17
+                        self.matrix[i, j].phiYn = self.__postEqn16to17(self.matrix[i, j].Yk, 0,
+                                                                       self.matrix[i, j].Ry, np.inf)
 
                     # Top layer of the MEC
                     elif i == self.yIndexesMEC[-1]:
-                        if self.allMecRegions:
-                            # Eqn 16
-                            self.matrix[i, j].phiYp = self.__postEqn16to17(0, self.matrix[i, j].Yk,
-                                                                           np.inf, self.matrix[i, j].Ry)
-                            # Eqn 17
-                            self.matrix[i, j].phiYn = self.__postEqn16to17(self.matrix[i, j].Yk, self.matrix[i - 1, j].Yk,
-                                                                           self.matrix[i, j].Ry, self.matrix[i - 1, j].Ry)
-                        else:
-                            isNextToUpperVac = regCnt + 1 == list(self.hmUnknownsList)[-1]
-                            ur2, sigma2 = self.__getUpperUrSigma(i)
-                            urSigma2 = ur2 * sigma2
-                            nCnt, Flux_ySum = 0, 0
-                            for nHM in self.n:
-                                wn = 2 * nHM * pi / self.Tper
-                                lambdaN2 = self.__lambda_n(wn, urSigma2)
-                                if isNextToUpperVac:
-                                    an = 0
-                                    bn = self.hmUnknownsList[regCnt + 1].bn[nCnt]
-                                else:
-                                    an = self.hmUnknownsList[regCnt + 1].an[nCnt]
-                                    bn = self.hmUnknownsList[regCnt + 1].bn[nCnt]
-                                Flux_ySum += self.__postEqn21(lambdaN2, wn, self.matrix[i, j].x,
-                                                              self.matrix[i, j].x + self.matrix[i, j].lx,
-                                                              self.matrix[i, j].y + self.matrix[i, j].ly,
-                                                              an, bn)
-                                nCnt += 1
-
-                            # Eqn 16
-                            self.matrix[i, j].phiYp = Flux_ySum
-                            # Eqn 17
-                            self.matrix[i, j].phiYn = self.__postEqn16to17(self.matrix[i, j].Yk, self.matrix[i - 1, j].Yk,
-                                                                           self.matrix[i, j].Ry, self.matrix[i - 1, j].Ry)
+                        # Eqn 16
+                        self.matrix[i, j].phiYp = self.__postEqn16to17(0, self.matrix[i, j].Yk,
+                                                                       np.inf, self.matrix[i, j].Ry)
+                        # Eqn 17
+                        self.matrix[i, j].phiYn = self.__postEqn16to17(self.matrix[i, j].Yk, self.matrix[i - 1, j].Yk,
+                                                                       self.matrix[i, j].Ry, self.matrix[i - 1, j].Ry)
 
                     else:
                         # Eqn 16
@@ -1006,31 +930,7 @@ class Model(Grid):
                     self.matrix[i, j].By = self.postMECAvgB(self.matrix[i, j].phiYn, self.matrix[i, j].phiYp,
                                                             self.matrix[i, j].Sxz)
 
-                elif i in self.yIndexesHM:
-                    ur = self.matrix[i, 0].ur
-                    sigma = self.matrix[i, 0].sigma
-                    urSigma = ur * sigma
-                    nCnt, BxSumCenter, BySumCenter = 0, 0, 0
-                    for nHM in self.n:
-                        wn = 2 * nHM * pi / self.Tper
-                        lambdaN = self.__lambda_n(wn, urSigma)
-                        an = self.hmUnknownsList[regCnt].an[nCnt]
-                        bn = self.hmUnknownsList[regCnt].bn[nCnt]
-                        BxSumCenter += self.__postEqn8(lambdaN, wn,
-                                                       self.matrix[i, j].xCenter, self.matrix[i, j].yCenter, an, bn)
-                        BySumCenter += self.__postEqn9(lambdaN, wn,
-                                                       self.matrix[i, j].xCenter, self.matrix[i, j].yCenter, an, bn)
-
-                        nCnt += 1
-
-                    self.matrix[i, j].Bx = BxSumCenter
-                    self.matrix[i, j].By = BySumCenter
-
                 self.matrix[i, j].B = cmath.sqrt(self.matrix[i, j].Bx ** 2 + self.matrix[i, j].By ** 2)
-
-                # Counter for each HM region
-                if i in [val for val in self.yBoundaryList if val not in self.yIndexesMEC[:-1]] and j == self.ppL - 1:
-                    regCnt += 1
 
                 j += 1
             j = 0
@@ -1068,170 +968,6 @@ class Model(Grid):
 
         if showAirgapPlot:
             self.__plotPointsAlongX(centerAirgapIdx_y, invertY=invertY)
-        if showUnknowns:
-            self.__plotPointsAlongHM(centerAirgapIdx_y)
-
-
-# noinspection PyGlobalUndefined
-def complexFourierTransform(model_in, harmonics_in):
-    """
-    This function was written to plot the Bx field at the boundary between the coils and the airgap,
-     described in equation 24 of the 2019 paper. The Bx field is piecewise-continuous and is plotted in Blue.
-     The complex Fourier transform was applied to the Bx field and plotted in Red. The accuracy of the
-     complex Fourier transform depends on: # of harmonics, # of x positions, # of nodes in the x-direction of the model
-
-    A perfect complex Fourier transform extends harmonics to +-Inf, while the 0th harmonic is accounted for in the
-     c_0 term. Since the Bx field does not have a y-direction offset, this term can be neglected.
-    """
-
-    global row_FT, expandedLeftNodeEdges, slices, idx_FT, harmonics, model
-
-    model = model_in
-
-    idx_FT = 0
-    harmonics = harmonics_in
-
-    yIdx_lower = model.yIndexesMEC[0]
-    yIdx_upper = model.yIndexesMEC[-1]
-    row_FT = model.matrix[yIdx_lower]
-    leftNodeEdges = [node.x for node in row_FT]
-    slices = 5
-    outerIdx, increment = 0, 0
-    expandedLeftNodeEdges = list(np.zeros(len(leftNodeEdges) * slices, dtype=np.float64))
-    for idx in range(len(expandedLeftNodeEdges)):
-        if idx % slices == 0:
-            increment = 0
-            if idx != 0:
-                outerIdx += 1
-        else:
-            increment += 1
-        sliceWidth = row_FT[outerIdx].lx / slices
-        expandedLeftNodeEdges[idx] = row_FT[outerIdx].x + increment * sliceWidth
-
-    # noinspection PyGlobalUndefined
-    def fluxAtBoundary():
-        global row_FT, idx_FT, model
-
-        lNode, rNode = model.neighbourNodes(idx_FT)
-        phiXn = (row_FT[idx_FT].MMF + row_FT[lNode].MMF) \
-                / (row_FT[idx_FT].Rx + row_FT[lNode].Rx)
-        phiXp = (row_FT[idx_FT].MMF + row_FT[rNode].MMF) \
-                / (row_FT[idx_FT].Rx + row_FT[rNode].Rx)
-        return phiXn, phiXp
-
-    # noinspection PyGlobalUndefined
-    @lru_cache(maxsize=5)
-    def pieceWise(x_in):
-        global row_FT, idx_FT, model
-
-        if x_in in leftNodeEdges[1:]:
-            idx_FT += 1
-
-        phiXn, phiXp = fluxAtBoundary()
-
-        return model.postMECAvgB(phiXn, phiXp, row_FT[idx_FT].Szy)
-
-    # noinspection PyGlobalUndefined
-    @lru_cache(maxsize=5)
-    def fourierSeries(x_in):
-        global row_FT, idx_FT, model
-        sumN = 0.0
-        for nHM in harmonics:
-            wn = 2 * nHM * pi / model.Tper
-            # TODO *=2 if matching BC, correct without 2 though!
-            #  we should try to multipy * 100 factor without 2 to see if it is closer
-            coeff = j_plex / (wn * model.Tper)
-            sumK = 0.0
-            for iX in range(len(row_FT)):
-                idx_FT = iX
-                phiXn, phiXp = fluxAtBoundary()
-                f = model.postMECAvgB(phiXn, phiXp, row_FT[iX].Szy)
-                Xl = row_FT[iX].x
-                Xr = Xl + row_FT[iX].lx
-                resExp = cmath.exp(-j_plex * wn * (Xr - model.vel * model.t))\
-                         - cmath.exp(-j_plex * wn * (Xl - model.vel * model.t))
-
-                sumK += f * resExp
-
-            sumN += coeff * sumK * cmath.exp(j_plex * wn * x_in)
-
-        return sumN
-
-    vfun = np.vectorize(pieceWise)
-    idx_FT = 0
-    x = expandedLeftNodeEdges
-    y1 = vfun(x)
-    vfun = np.vectorize(fourierSeries)
-    y2 = vfun(x)
-
-    # Background shading slots
-    minY1, maxY1 = min(y2), max(y2)
-    xPosLines = list(map(lambda x: x.x, model.matrix[0][model.coilArray[::model.ppSlot]]))
-    for cnt, each in enumerate(xPosLines):
-        plt.axvspan(each, each + model.ws, facecolor='b', alpha=0.15, label="_" * cnt + "slot regions")
-    plt.legend()
-
-    plt.plot(x, y1, 'b-')
-    plt.plot(x, y2, 'r-')
-    plt.xlabel('Position [m]')
-    plt.ylabel('Bx [T]')
-    plt.title('Bx field at airgap Boundary')
-    # plt.show()
-
-    return x, y1
-
-
-def plotFourierError():
-
-    iterations = 1
-    step = 1
-    start = 5
-    pixDivs = range(start, start + iterations * step, step)
-    modelList = np.empty(len(pixDivs), dtype=ndarray)
-
-    lowDiscrete = 50
-    n = range(-lowDiscrete, lowDiscrete + 1)
-    n = np.delete(n, len(n) // 2, 0)
-    slots = 16
-    poles = 6
-    wt, ws = 6 / 1000, 10 / 1000
-    slotpitch = wt + ws
-    endTeeth = 2 * (5/3 * wt)
-    length = ((slots - 1) * slotpitch + ws) + endTeeth
-    meshDensity = np.array([4, 2])
-    xMeshIndexes = [[0, 0]] + [[0, 0]] + [[0, 0], [0, 0]] * (slots - 1) + [[0, 0]] + [[0, 0]] + [[0, 0]]
-    # [LowerVac], [Yoke], [LowerSlots], [UpperSlots], [Airgap], [BladeRotor], [BackIron], [UpperVac]
-    yMeshIndexes = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
-    canvasSpacing = 80
-
-    for idx, pixelDivisions in enumerate(pixDivs):
-
-        pixelSpacing = slotpitch / pixelDivisions
-        regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
-                      'mecRegions': {5: 'mec'},
-                      'invertY': False}
-        choiceRegionCfg = regionCfg1
-
-        loopedModel = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
-                                             pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
-                                             meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                                             hmRegions=
-                                             choiceRegionCfg['hmRegions'],
-                                             mecRegions=
-                                             choiceRegionCfg['mecRegions'],
-                                             errorTolerance=1e-15,
-                                             # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
-                                             invertY = choiceRegionCfg['invertY'])
-
-        loopedModel.buildGrid(pixelSpacing=pixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
-        loopedModel.finalizeGrid(pixelDivisions)
-        modelList[idx] = ((pixelDivisions, loopedModel.ppL, loopedModel.ppH), complexFourierTransform(loopedModel, n))
-
-    for (pixelDivisions, ppL, ppH), (xSequence, ySequence) in modelList:
-        plt.plot(xSequence, ySequence, label=f'PixelDivs: {pixelDivisions}, (ppL, ppH): {(ppL, ppH)}')
-
-    plt.legend()
-    plt.show()
 
 
 if __name__ == '__main__':

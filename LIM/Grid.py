@@ -681,24 +681,27 @@ class Grid(LimMotor):
 
         # Y direction Checks
 
+        def yUpperPos(_list):
+            return self.matrix[_list[-1]][xIdx].y + self.matrix[_list[-1]][xIdx].ly
+
         xIdx = 0
         # Check Blade Rotor
-        diffBladeRotorDims = self.dr - (self.matrix[self.yIndexesBladeRotor[-1]+1][xIdx].y - self.matrix[self.yIndexesBladeRotor[0]][xIdx].y)
+        diffBladeRotorDims = self.dr - (yUpperPos(self.yIndexesBladeRotor) - self.matrix[self.yIndexesBladeRotor[0]][xIdx].y)
         if round(diffBladeRotorDims, 12) != 0:
             print(f'flag - blade rotor: {diffBladeRotorDims}')
             spatialDomainFlag = True
         # Check Air Gap
-        diffAirGapDims = self.g - (self.matrix[self.yIndexesAirgap[-1]+1][xIdx].y - self.matrix[self.yIndexesAirgap[0]][xIdx].y)
+        diffAirGapDims = self.g - (yUpperPos(self.yIndexesAirgap) - self.matrix[self.yIndexesAirgap[0]][xIdx].y)
         if round(diffAirGapDims, 12) != 0:
             print(f'flag - air gap: {diffAirGapDims}')
             spatialDomainFlag = True
         # Check Lower Slot Height
-        diffLowerSlotHeightDims = self.hs/2 - (self.matrix[self.yIndexesLowerSlot[-1]+1][xIdx].y - self.matrix[self.yIndexesLowerSlot[0]][xIdx].y)
+        diffLowerSlotHeightDims = self.hs/2 - (yUpperPos(self.yIndexesLowerSlot) - self.matrix[self.yIndexesLowerSlot[0]][xIdx].y)
         if round(diffLowerSlotHeightDims, 12) != 0:
             print(f'flag - slot height: {diffLowerSlotHeightDims}')
             spatialDomainFlag = True
         # Check Upper Slot Height
-        diffUpperSlotHeightDims = self.hs/2 - (self.matrix[self.yIndexesUpperSlot[-1]+1][xIdx].y - self.matrix[self.yIndexesUpperSlot[0]][xIdx].y)
+        diffUpperSlotHeightDims = self.hs/2 - (yUpperPos(self.yIndexesUpperSlot) - self.matrix[self.yIndexesUpperSlot[0]][xIdx].y)
         if round(diffUpperSlotHeightDims, 12) != 0:
             print(f'flag - slot height: {diffUpperSlotHeightDims}')
             spatialDomainFlag = True
@@ -712,21 +715,13 @@ class Grid(LimMotor):
             isBIAtUpperVac = list(self.getFullRegionDict())[1:-1].index('bi') == len(list(self.getFullRegionDict())[1:-1]) - 1
 
         # Check if yoke is next to upperVac, otherwise index out of bounds will occur
-        if isYokeAtUpperVac and not self.invertY:
-            yokeY = self.matrix[self.yIndexesYoke[-1]][xIdx].y + self.matrix[self.yIndexesYoke[-1]][xIdx].ly - self.matrix[self.yIndexesYoke[0]][xIdx].y
-        else:
-            yokeY = self.matrix[self.yIndexesYoke[-1]+1][xIdx].y - self.matrix[self.yIndexesYoke[0]][xIdx].y
-        diffYokeDims = self.hy - yokeY
+        diffYokeDims = self.hy - yUpperPos(self.yIndexesYoke) - self.matrix[self.yIndexesYoke[0]][xIdx].y
         if round(diffYokeDims, 12) != 0:
             print(f'flag - yoke: {diffYokeDims}')
             spatialDomainFlag = True
 
         # Check if yoke is next to upperVac, otherwise index out of bounds will occur
-        if isBIAtUpperVac:
-            biY = self.matrix[self.yIndexesBackIron[-1]][xIdx].y + self.matrix[self.yIndexesBackIron[-1]][xIdx].ly - self.matrix[self.yIndexesBackIron[0]][xIdx].y
-        else:
-            biY = self.matrix[self.yIndexesBackIron[-1]+1][xIdx].y - self.matrix[self.yIndexesBackIron[0]][xIdx].y
-        diffBackIronDims = self.bi - biY
+        diffBackIronDims = self.bi - yUpperPos(self.yIndexesBackIron) - self.matrix[self.yIndexesBackIron[0]][xIdx].y
         if round(diffBackIronDims, 12) != 0:
             print(f'flag - blade rotor: {diffBackIronDims}')
             spatialDomainFlag = True
