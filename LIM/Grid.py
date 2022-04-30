@@ -138,6 +138,7 @@ class Grid(LimMotor):
             if region.split('_')[0] != 'vac':
                 for idx in self.getFullRegionDict()[region]['idx'].split(', '):
                     self.__dict__[idx] = list(range(offsetList[innerCnt][0], offsetList[innerCnt][1]))
+                    self.yBoundaryList.append(self.__dict__[idx][-1])
                     self.yIndexesMEC.extend(self.__dict__[idx])
                     innerCnt += 1
 

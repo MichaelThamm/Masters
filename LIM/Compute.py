@@ -95,10 +95,10 @@ class Model(Grid):
 
     def mec(self, i, j, node, time_plex, listBCInfo, mecRegCountOffset):
 
-        hb1, urSigma1, hb2, urSigma2 = listBCInfo
+        hb1, hb2 = listBCInfo
         lNode, rNode = self.neighbourNodes(j)
-        northRelDenom = self.matrix[i, j].Ry + self.matrix[i + 1, j].Ry
-        southRelDenom = self.matrix[i, j].Ry + self.matrix[i - 1, j].Ry
+        northRelDenom = np.inf if i == self.ppH - 1 else self.matrix[i, j].Ry + self.matrix[i + 1, j].Ry
+        southRelDenom = np.inf if i == 0 else self.matrix[i, j].Ry + self.matrix[i - 1, j].Ry
         eastRelDenom = self.matrix[i, j].Rx + self.matrix[i, rNode].Rx
         westRelDenom = self.matrix[i, j].Rx + self.matrix[i, lNode].Rx
 
@@ -113,7 +113,6 @@ class Model(Grid):
 
         # Bottom layer of the mesh
         if i == self.yIndexesMEC[0]:
-            # TODO What happens to south node here
             # North Node
             self.matrixA[self.matACount + node, northIdx] = - time_plex / northRelDenom
             # Current Node
@@ -121,7 +120,6 @@ class Model(Grid):
 
         # Top layer of the mesh
         elif i == self.yIndexesMEC[-1]:
-            # TODO What happens to the north node here
             # South Node
             self.matrixA[self.matACount + node, southIdx] = - time_plex / southRelDenom
             # Current Node
@@ -228,14 +226,9 @@ class Model(Grid):
         if boundaryType == 'mec':
 
             hb1 = self.matrix[iY1, 0].y
-            ur1, sigma1 = self.__getLowerUrSigma(iY1)
-            urSigma1 = ur1 * sigma1
-
             hb2 = self.matrix[iY2+1, 0].y if iY2 != self.ppH - 1 else self.modelHeight
-            ur2, sigma2 = self.__getUpperUrSigma(iY2)
-            urSigma2 = ur2 * sigma2
 
-            return [hb1, urSigma1, hb2, urSigma2]
+            return [hb1, hb2]
 
     def __linalg_lu(self):
 
@@ -358,24 +351,6 @@ class Model(Grid):
         plt.ylabel('By [T]')
         plt.title('By field in airgap')
         plt.show()
-
-    def __getLowerUrSigma(self, i):
-        if i == 0:
-            ur = self.ur_air
-            sigma = self.sigma_air
-        else:
-            ur = self.matrix[i - 1, 0].ur
-            sigma = self.matrix[i - 1, 0].sigma
-        return ur, sigma
-
-    def __getUpperUrSigma(self, i):
-        if i == self.ppH - 1:
-            ur = self.ur_air
-            sigma = self.sigma_air
-        else:
-            ur = self.matrix[i + 1, 0].ur
-            sigma = self.matrix[i + 1, 0].sigma
-        return ur, sigma
 
     def __buildMatAB(self):
 
