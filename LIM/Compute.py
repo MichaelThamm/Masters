@@ -101,7 +101,7 @@ class Model(Grid):
         eastRelDenom = self.matrix[i, j].Rx + self.matrix[i, rNode].Rx
         westRelDenom = self.matrix[i, j].Rx + self.matrix[i, lNode].Rx
 
-        eastMMFNum = self.matrix[i, j].MMF + self.matrix[i, rNode].MMF
+        eastMMFNum = self.matrix[i, rNode].MMF + self.matrix[i, j].MMF
         westMMFNum = self.matrix[i, j].MMF + self.matrix[i, lNode].MMF
 
         currIdx = mecRegCountOffset + node
@@ -162,7 +162,7 @@ class Model(Grid):
         return res
 
     # @njit('float64(float64, float64, float64, float64, float64, float64)', cache=True)
-    def __postEqn14to15(self, destpot, startpot, startMMF, destMMF, destRel, startRel):
+    def __postEqn14to15(self, destpot, startpot, destMMF, startMMF, destRel, startRel):
 
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
         result = (time_plex * (destpot - startpot) + destMMF + startMMF) / (destRel + startRel)

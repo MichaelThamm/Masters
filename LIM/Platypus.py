@@ -301,7 +301,7 @@ def profile_main():
 
 def main():
     # Efficient to simulate at pixDiv >= 10, but fastest at pixDiv = 2
-    pixelDivisions = 2
+    pixelDivisions = 5
 
     slots = 16
     poles = 6
