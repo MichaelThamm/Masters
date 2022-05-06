@@ -34,11 +34,8 @@ class Grid(LimMotor):
 
         # Turn inputs into attributes
         self.invertY = kwargs['invertY']
-        xMeshIndexes = kwargs['meshIndexes'][0]
-        yMeshIndexes = kwargs['meshIndexes'][1]
         self.Spacing = kwargs['pixelSpacing']
         self.Cspacing = kwargs['canvasSpacing'] / self.H
-        self.meshDensity = kwargs['meshDensity']
         self.mecRegions = kwargs['mecRegions']
 
         self.mecRegionsIndex = np.zeros(len(self.mecRegions) + 1, dtype=np.int32)
@@ -49,8 +46,6 @@ class Grid(LimMotor):
         self.yIndexesLowerSlot, self.yIndexesUpperSlot, self.yIndexesYoke = [], [], []
 
         self.removeLowerCoilIdxs, self.removeUpperCoilIdxs = [], []
-        self.xFirstEdgeNodes, self.xSecondEdgeNodes = [], []
-        self.yFirstEdgeNodes, self.ySecondEdgeNodes = [], []
 
         self.yListPixelsPerRegion = []
         self.yIndexesHM, self.yIndexesMEC = [], []
@@ -90,26 +85,27 @@ class Grid(LimMotor):
 
         self.toothArray, self.coilArray, self.bufferArray = np.zeros((3, 1), dtype=np.int16)
         self.removeLowerCoils, self.removeUpperCoils = np.zeros((2, 1), dtype=np.int16)
-
-        self.xMeshSizes = np.zeros(len(xMeshIndexes), dtype=np.float64)
-
-        # Mesh sizing
-        self.fractionSize = (1 / self.meshDensity[0] + 1 / self.meshDensity[1])
+        # [LeftAirBuffer], [LeftEndTooth], [Slots], [FullTeeth], [LastSlot], [RightEndTooth], [RightAirBuffer]
+        airBuffers, endTeeth, slotPoles = 2, 2, (self.slots - 1)*2 + 1
+        xMeshIndexes = airBuffers + endTeeth + slotPoles
+        self.xMeshSizes = np.zeros(xMeshIndexes, dtype=np.float64)
 
         self.mecRegionLength = self.ppMEC * self.ppL
         self.modelHeight = 0
         for region, values in self.getFullRegionDict().items():
-            if region.split('_')[0] != 'vac':
-                for spatial in values['spatial'].split(', '):
-                    self.modelHeight += self.__dict__[spatial] / 2 if spatial == 'hs' else self.__dict__[spatial]
+            for spatial in values['spatial'].split(', '):
+                self.modelHeight += self.__dict__[spatial] / 2 if spatial == 'hs' else self.__dict__[spatial]
 
         # Update the hm and mec RegionIndex
         self.setRegionIndices()
 
+        # TODO I looked over the code in SlotPoleCalculation and most of Grid and Compute without finding the error. I tried some tests with MMF scaling and Reluctance
+        #     but could not get the right waveform although I can modify the magnitude
+        #     I could try to get a MEC version of thrust working to see what the thrust is like. Is it also 100x off the right val?
         self.xListSpatialDatum = [self.Airbuffer, self.endTeeth] + [self.ws, self.wt] * (self.slots - 1) + [self.ws, self.endTeeth, self.Airbuffer]
         self.xListPixelsPerRegion = [self.ppAirBuffer, self.ppEndTooth] + [self.ppSlot, self.ppTooth] * (self.slots - 1) + [self.ppSlot, self.ppEndTooth, self.ppAirBuffer]
         for Cnt in range(len(self.xMeshSizes)):
-            self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(xMeshIndexes[Cnt]), self.meshDensity)
+            self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt])
             if self.xMeshSizes[Cnt] < 0:
                 print('negative x mesh sizes', Cnt)
                 return
@@ -117,38 +113,33 @@ class Grid(LimMotor):
         offsetList = []
         cnt, offsetLower, offsetUpper = 0, 0, 0
         for region in self.getFullRegionDict():
-            if region.split('_')[0] != 'vac':
-                # Set up the y-axis indexes
-                for pp in self.getFullRegionDict()[region]['pp'].split(', '):
-                    offsetLower = offsetUpper
-                    offsetUpper += self.__dict__[pp] // 2 if pp == PP_SLOTHEIGHT else self.__dict__[pp]
-                    offsetList.append((offsetLower, offsetUpper))
-                for inner_cnt, spatial in enumerate(self.getFullRegionDict()[region]['spatial'].split(', ')):
-                    pixelKey = self.getFullRegionDict()[region]['pp'].split(', ')[inner_cnt]
-                    pixelVal = self.__dict__[pixelKey] // 2 if pixelKey == PP_SLOTHEIGHT else self.__dict__[pixelKey]
-                    spatialVal = self.__dict__[spatial] / 2 if pixelKey == PP_SLOTHEIGHT else self.__dict__[spatial]
-                    self.yListPixelsPerRegion.append(pixelVal)
-                    self.yMeshSizes.append(meshBoundary(spatialVal, pixelVal, self.Spacing, self.fractionSize,
-                                                        sum(yMeshIndexes[cnt]), self.meshDensity))
-                    cnt += 1
+            # Set up the y-axis indexes
+            for pp in self.getFullRegionDict()[region]['pp'].split(', '):
+                offsetLower = offsetUpper
+                offsetUpper += self.__dict__[pp] // 2 if pp == PP_SLOTHEIGHT else self.__dict__[pp]
+                offsetList.append((offsetLower, offsetUpper))
+            for inner_cnt, spatial in enumerate(self.getFullRegionDict()[region]['spatial'].split(', ')):
+                pixelKey = self.getFullRegionDict()[region]['pp'].split(', ')[inner_cnt]
+                pixelVal = self.__dict__[pixelKey] // 2 if pixelKey == PP_SLOTHEIGHT else self.__dict__[pixelKey]
+                spatialVal = self.__dict__[spatial] / 2 if pixelKey == PP_SLOTHEIGHT else self.__dict__[spatial]
+                self.yListPixelsPerRegion.append(pixelVal)
+                self.yMeshSizes.append(meshBoundary(spatialVal, pixelVal))
+                cnt += 1
 
         # Initialize the y-axis index attributes format: self.yIndexes___
         innerCnt = 0
         for region in self.getFullRegionDict():
-            if region.split('_')[0] != 'vac':
-                for idx in self.getFullRegionDict()[region]['idx'].split(', '):
-                    self.__dict__[idx] = list(range(offsetList[innerCnt][0], offsetList[innerCnt][1]))
-                    self.yBoundaryList.append(self.__dict__[idx][-1])
-                    self.yIndexesMEC.extend(self.__dict__[idx])
-                    innerCnt += 1
+            for idx in self.getFullRegionDict()[region]['idx'].split(', '):
+                self.__dict__[idx] = list(range(offsetList[innerCnt][0], offsetList[innerCnt][1]))
+                self.yBoundaryList.append(self.__dict__[idx][-1])
+                self.yIndexesMEC.extend(self.__dict__[idx])
+                innerCnt += 1
 
         # Thrust of the entire integration region
         self.Fx = 0.0
         self.Fy = 0.0
 
-    def buildGrid(self, pixelSpacing, meshIndexes):
-        xMeshIndexes = meshIndexes[0]
-        yMeshIndexes = meshIndexes[1]
+    def buildGrid(self):
 
         #  Initialize grid with Nodes
         listOffset = self.ppAirBuffer + self.ppEndTooth
@@ -245,53 +236,6 @@ class Grid(LimMotor):
         self.inUpper_slotsC = np.array(upperCoilsC[::2])
         self.outUpper_slotsC = np.array(upperCoilsC[1::2])
 
-        # MeshIndexes is a list of 1s and 0s for each boundary for each region to say whether or not
-        #  dense meshing is required at the boundary
-        # X Mesh Density
-        Cnt = 0
-        idxOffset = self.xListPixelsPerRegion[Cnt]
-        idxLeft, idxRight = 0, idxOffset
-        idxList = range(self.ppL)
-        for boundary in xMeshIndexes:
-            if boundary[0]:  # Left Boundary in the region
-                firstIndexes = idxList[idxLeft]
-                secondIndexes = idxList[idxLeft + 1]
-                self.xFirstEdgeNodes.append(firstIndexes)
-                self.xSecondEdgeNodes.append(secondIndexes)
-            if boundary[1]:  # Right Boundary in the region
-                firstIndexes = idxList[idxRight - 1]
-                secondIndexes = idxList[idxRight - 2]
-                self.xFirstEdgeNodes.append(firstIndexes)
-                self.xSecondEdgeNodes.append(secondIndexes)
-            idxLeft += idxOffset
-            if Cnt < len(self.xListPixelsPerRegion) - 1:
-                idxOffset = self.xListPixelsPerRegion[Cnt+1]
-            idxRight += idxOffset
-            Cnt += 1
-
-        # Y Mesh Density
-        Cnt = 0
-        idxOffset = self.yListPixelsPerRegion[Cnt]
-        idxLeft, idxRight = 0, idxOffset
-        # TODO Here - yMeshIndexes is not robust since removal of an and bn prior
-        idxList = range(self.ppH)
-        for boundary in yMeshIndexes:
-            if boundary[0]:  # Left Boundary in the region
-                firstIndexes = idxList[idxLeft]
-                secondIndexes = idxList[idxLeft + 1]
-                self.yFirstEdgeNodes.append(firstIndexes)
-                self.ySecondEdgeNodes.append(secondIndexes)
-            if boundary[1]:  # Right Boundary in the region
-                firstIndexes = idxList[idxRight - 1]
-                secondIndexes = idxList[idxRight - 2]
-                self.yFirstEdgeNodes.append(firstIndexes)
-                self.ySecondEdgeNodes.append(secondIndexes)
-            idxLeft += idxOffset
-            if Cnt < len(self.yListPixelsPerRegion) - 1:
-                idxOffset = self.yListPixelsPerRegion[Cnt+1]
-            idxRight += idxOffset
-            Cnt += 1
-
         self.xBoundaryList = [self.bufferArray[self.ppAirBuffer - 1],
                               self.toothArray[self.ppEndTooth - 1]] + self.coilArray[self.ppSlot - 1::self.ppSlot]\
                               + self.toothArray[self.ppEndTooth + self.ppTooth - 1:-self.ppEndTooth:self.ppTooth] + [self.toothArray[-1],
@@ -305,33 +249,18 @@ class Grid(LimMotor):
 
             xCnt = 0
             # Keep track of the y coordinate for each node
-            if a in self.yFirstEdgeNodes:
-                delY = pixelSpacing / self.meshDensity[0]
-            elif a in self.ySecondEdgeNodes:
-                delY = pixelSpacing / self.meshDensity[1]
-            else:
-                delY = self.yMeshSizes[c]
+            delY = self.yMeshSizes[c]
 
             while b < self.ppL:
 
                 # Keep track of the x coordinate for each node
-                if b in self.xFirstEdgeNodes:
-                    delX = pixelSpacing / self.meshDensity[0]
-                elif b in self.xSecondEdgeNodes:
-                    delX = pixelSpacing / self.meshDensity[1]
-                else:
-                    delX = self.xMeshSizes[d]
+                delX = self.xMeshSizes[d]
 
                 self.matrix[a][b] = Node.buildFromScratch(iIndex=[b, a], iXinfo=[xCnt, delX], iYinfo=[yCnt, delY],
                                                           modelDepth=self.D)
 
                 # Keep track of the x coordinate for each node
-                if b in self.xFirstEdgeNodes:
-                    xCnt += pixelSpacing / self.meshDensity[0]
-                elif b in self.xSecondEdgeNodes:
-                    xCnt += pixelSpacing / self.meshDensity[1]
-                else:
-                    xCnt += delX
+                xCnt += delX
 
                 if b in self.xBoundaryList:
                     d += 1
@@ -341,12 +270,7 @@ class Grid(LimMotor):
             d = 0
 
             # Keep track of the y coordinate for each node
-            if a in self.yFirstEdgeNodes:
-                yCnt += pixelSpacing / self.meshDensity[0]
-            elif a in self.ySecondEdgeNodes:
-                yCnt += pixelSpacing / self.meshDensity[1]
-            else:
-                yCnt += delY
+            yCnt += delY
 
             # TODO We cannot have the last row in this list so it must be unwritten
             if a in self.yBoundaryList:
@@ -822,8 +746,8 @@ class Region(object):
         return cls(kwargs=jsonObject, buildFromJson=True)
 
 
-def meshBoundary(spatial, pixels, spacing, fraction, numBoundaries, meshDensity):
+def meshBoundary(spatial, pixels):
 
-    meshSize = (spatial - numBoundaries*fraction*spacing) / (pixels - len(meshDensity)*numBoundaries)
+    meshSize = spatial / pixels
 
     return meshSize

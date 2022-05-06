@@ -21,11 +21,6 @@ class Model(Grid):
 
         super().__init__(kwargs)
 
-        self.writeErrorToDict(key='name',
-                              error=Error.buildFromScratch(name='meshDensityDiscrepancy',
-                                                           description="ERROR - The last slot has a different mesh density than all other slots",
-                                                           cause=kwargs['meshIndexes'][0][2] != kwargs['meshIndexes'][0][-3]))
-
         self.errorTolerance = kwargs['errorTolerance']
 
         self.mecIdxs = []
@@ -36,6 +31,10 @@ class Model(Grid):
         self.matrixA = np.zeros((self.lenUnknowns, self.lenUnknowns), dtype=np.cdouble)
         self.matrixB = np.zeros(len(self.matrixA), dtype=np.cdouble)
         self.matrixX = np.zeros(len(self.matrixA), dtype=np.cdouble)
+
+        # HM and MEC unknown indexes in matrix A and B, used for visualization
+        self.canvasRowRegIdxs, self.canvasColRegIdxs = [0], [0]
+        self.mecCanvasRegIdxs = [self.canvasRowRegIdxs[list(self.getFullRegionDict()).index('mec')-1] + self.ppL * i for i in range(1, self.ppMEC)]
 
         for i in self.mecRegionsIndex[:-1]:
             self.mecIdxs.extend(list(range(i, i + self.mecRegionLength)))
