@@ -12,82 +12,6 @@ https://platypus.readthedocs.io/en/latest/getting-started.html
 '''
 
 
-# Problem is the object that Test will inherit from
-class Test(Problem):
-
-    def __init__(self, iN):
-        self.n = iN
-        # The numbers indicate: #inputs, #objectives, #constraints
-        super(Test, self).__init__(2, 2, 1)
-        # Constrain the range and type for each input
-        self.types[:] = [Integer(12, 50), Integer(12, 50)]
-        # Constrain every input. This works in unison with with constraints in the evaluate method
-        # Ex) Slots >= Poles becomes Slots - Poles >= 0 so init constraint becomes ">=0" and evaluate constraint becomes Slots - Poles
-        self.constraints[:] = ">=0"
-        # Choose which objective to maximize and minimize
-        self.directions[:] = [self.MINIMIZE, self.MAXIMIZE]
-
-    def evaluate(self, solution):
-        # TODO To get this to work you need to uncomment the robust ratios in SlotPoleCalculation
-        slots = solution.variables[0]
-        poles = solution.variables[1]
-
-        q = slots / poles / 3
-        if slots > poles and slots > 6 and poles % 2 == 0 and q % 1 == 0 and q != 0:
-
-            pixelDivisions = 5
-            lowDiscrete = 50
-            n = range(-lowDiscrete, lowDiscrete + 1)
-            n = np.delete(n, len(n) // 2, 0)
-            wt, ws = 6 / 1000, 10 / 1000
-            slotpitch = wt + ws
-            endTeeth = 2 * (5 / 3 * wt)
-            length = ((slots - 1) * slotpitch + ws) + endTeeth
-
-            meshDensity = np.array([4, 2])
-            xMeshIndexes = [[0, 0]] + [[0, 0]] + [[0, 0], [0, 0]] * (slots - 1) + [[0, 0]] + [[0, 0]] + [[0, 0]]
-            yMeshIndexes = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
-            pixelSpacing = slotpitch / pixelDivisions
-            canvasSpacing = 80
-
-            regionCfg3 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 5: 'vac_upper'},
-                          'mecRegions': {4: 'mec'},
-                          'invertY': False}
-
-            choiceRegionCfg = regionCfg3
-
-            # Object for the model design, grid, and matrices
-            model = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
-                                           pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
-                                           meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                                           hmRegions=
-                                           choiceRegionCfg['hmRegions'],
-                                           mecRegions=
-                                           choiceRegionCfg['mecRegions'],
-                                           errorTolerance=1e-15,
-                                           # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
-                                           # TODO This invertY flips the core MEC region
-                                           invertY=choiceRegionCfg['invertY'])
-
-            model.buildGrid(pixelSpacing, [xMeshIndexes, yMeshIndexes])
-            model.finalizeGrid(pixelDivisions)
-            errorInX = model.finalizeCompute()
-            model.updateGrid(errorInX, showAirgapPlot=False, invertY=True, showUnknowns=False)
-
-            mass_fitness = model.MassTot
-            thrust_fitness = model.Fx
-        else:
-            mass_fitness = math.inf
-            thrust_fitness = 0
-
-        print('solution: ', slots, poles, mass_fitness, thrust_fitness)
-
-        solution.objectives[:] = [mass_fitness, thrust_fitness]
-        solution.constraints[:] = [slots - poles]
-
-
-# Break apart the grid.matrix array
-
 class EncoderDecoder(object):
     def __init__(self, model):
 
@@ -236,69 +160,6 @@ class EncoderDecoder(object):
                                                                             cause=True))
 
 
-def platypus(n, run=False):
-    if not run:
-        return
-
-    with timing():
-        algorithm = NSGAII(Test(n))
-        algorithm.run(5000)
-
-    # # TODO Platypus has parallelization built in instead of using Jit
-    # # TODO Look into changing population
-    feasible_solutions = [s for s in algorithm.result if s.feasible]
-    # # TODO Use the debugging tool to see the attributes of algorithm.population
-    plotResults = []
-    cnt = 1
-    for results in feasible_solutions:
-        slotpoles = [algorithm.problem.types[0].decode(results.variables[0]), algorithm.problem.types[0].decode(results.variables[1])]
-        objectives = [results.objectives[0], results.objectives[1]]
-        # TODO Think of a good way to plot results
-        print(slotpoles, objectives)
-        plotResults.append((slotpoles, objectives))
-        cnt += 1
-
-    fig, axs = plt.subplots(2)
-    fig.suptitle('Mass and Thrust')
-    axs[0].scatter(range(1, cnt), [x[1, 0] for x in plotResults])
-    axs[0].set_title('Mass')
-    axs[1].scatter(range(1, cnt), [x[1, 1] for x in plotResults])
-    axs[1].set_title('Thrust')
-    axs[2].scatter(range(1, cnt), [x[0, 0] for x in plotResults])
-    axs[2].set_title('mass obj')
-    axs[3].scatter(range(1, cnt), [x[0, 1] for x in plotResults])
-    axs[3].set_title('thrust obj')
-    plt.scatter(range(1, cnt), [x[1, 1] for x in plotResults])
-    # plt.scatter(range(1, cnt), [x[1, 1] for x in plotResults])
-    plt.xlabel('Generations')
-    plt.ylabel('Thrust Objective Value')
-    plt.show()
-
-
-def profile_main():
-
-    import cProfile, pstats, io
-
-    prof = cProfile.Profile()
-    prof = prof.runctx("main()", globals(), locals())
-
-    stream = io.StringIO()
-
-    stats = pstats.Stats(prof, stream=stream)
-    stats.sort_stats("time")  # or cumulative
-    stats.print_stats(80)  # 80 = how many to print
-
-    # The rest is optional.
-    # stats.print_callees()
-    # stats.print_callers()
-
-    # logging.info("Profile data:\n%s", stream.getvalue())
-
-    f = open(os.path.join(OUTPUT_PATH, 'profile.txt'), 'a')
-    f.write(stream.getvalue())
-    f.close()
-
-
 def main():
     # Efficient to simulate at pixDiv >= 10, but fastest at pixDiv = 2
     pixelDivisions = 5
@@ -309,8 +170,6 @@ def main():
     slotpitch = wt + ws
     endTeeth = 2 * (5/3 * wt)
     length = ((slots - 1) * slotpitch + ws) + endTeeth
-
-    # platypus(n, run=False)
 
     pixelSpacing = slotpitch/pixelDivisions
     canvasSpacing = 80
