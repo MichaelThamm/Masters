@@ -2,12 +2,10 @@ from LIM.Grid import *
 from LIM.SlotPoleCalculation import np
 from scipy.linalg import lu_factor, lu_solve
 import matplotlib.pyplot as plt
-from functools import lru_cache
 
 
 # This performs the lower-upper decomposition of A to solve for x in Ax = B
 # A must be a square matrix
-# @njit("float64[:](float64[:, :], float64[:])", cache=True)
 class Model(Grid):
 
     currColCount, currColCountUpper, matACount, matBCount = 0, 0, 0, 0
