@@ -1,9 +1,5 @@
-from Optimizations.OptimizationCfg import *
 from LIM.Show import *
-from platypus import *
 
-import math
-import matplotlib.pyplot as plt
 import json
 
 OUTPUT_PATH = os.path.join(PROJECT_PATH, 'Output')
@@ -12,48 +8,6 @@ DATA_PATH = os.path.join(OUTPUT_PATH, 'StoredSolutionData.json')
 '''
 https://platypus.readthedocs.io/en/latest/getting-started.html
 '''
-
-
-class MotorOptProblem(Problem):
-
-    def __init__(self, slots, poles, motorCfg, hamCfg, canvasCfg):
-        # The numbers indicate: #inputs, #objectives, #constraints
-        super(MotorOptProblem, self).__init__(2, 2, 1)
-        # Constrain the range and type for each input
-        self.types[:] = [Integer(slots[0], slots[1]), Integer(poles[0], poles[1])]
-        # Constrain every input. This works in unison with with constraints in the evaluate method
-        # Ex) Slots >= Poles becomes Slots - Poles >= 0 so init constraint becomes ">=0" and evaluate constraint becomes Slots - Poles
-        self.constraints[:] = ">=0"
-        # Choose which objective to maximize and minimize
-        self.directions[:] = [self.MINIMIZE, self.MAXIMIZE]
-        self.motorCfg = motorCfg
-        self.hamCfg = hamCfg
-        self.canvasCfg = canvasCfg
-
-    def evaluate(self, solution):
-        slots = solution.variables[0]
-        poles = solution.variables[1]
-
-        self.motorCfg['slots'] = slots
-        self.motorCfg['poles'] = poles
-
-        print(slots, poles)
-        # if slots > poles and slots > 6 and poles % 2 == 0 and q % 1 == 0 and q != 0:
-        if slots > poles and slots > 6 and poles % 2 == 0:
-
-            # Object for the model design, grid, and matrices
-            model = buildMotor(run=True, baseline=False, optimize=True, motorCfg=self.motorCfg, hamCfg=self.hamCfg, canvasCfg=self.canvasCfg)
-            mass_fitness = model.massTot
-            thrust_fitness = model.Fx
-
-        else:
-            mass_fitness = math.inf
-            thrust_fitness = 0
-
-        # print('solution: ', slots, poles, mass_fitness, thrust_fitness)
-
-        solution.objectives[:] = [mass_fitness, thrust_fitness]
-        solution.constraints[:] = [slots - poles]
 
 
 # Break apart the grid.matrix array
@@ -212,37 +166,6 @@ class EncoderDecoder(object):
                                                                             cause=True))
 
 
-def platypus(motorCfg, hamCfg, canvasCfg, run=False):
-    '''
-    This is a function that iterates over many motor configurations while optimizing for performance
-    '''
-
-    if not run:
-        return
-
-    logging.FileHandler(LOGGER_FILE, mode='w')
-
-    tolerance = 10 ** (-7)
-    max_evals = 30000 - 1
-    max_stalls = 25
-    stall_tolerance = tolerance
-    timeout = 3000000  # seconds
-    parent_size = 200
-    tournament_size = 2
-    constraint_params = {'slots': [10, 24], 'poles': [4, 9], 'motorCfg': motorCfg, 'hamCfg': hamCfg, 'canvasCfg': canvasCfg}
-    termination_params = {'max_evals': max_evals, 'tolerance': tolerance,
-                          'max_stalls': max_stalls, 'stall_tolerance': stall_tolerance,
-                          'timeout': timeout}
-    solverList = []
-
-    # TODO There is an issue with the initialization of variables. It seems like the support for Integer is not really there
-    #   I can try to fix this but swap to Real instead and then just round in the evaluate method instead using floor div
-    nsga_params = {'population_size': parent_size, 'generator': RandomGenerator(),
-                   'selector': TournamentSelector(tournament_size), 'variator': GAOperator(SBX(0.3), PM(0.1)),
-                   'archive': FitnessArchive(nondominated_sort)}
-    solverList = solveOptimization(NSGAII, MotorOptProblem, solverList, constraint_params, termination_params, nsga_params, run=True)
-
-
 def buildMotor(motorCfg, hamCfg, canvasCfg, run=False, baseline=False, optimize=False):
     '''
     This is a function that allows for a specific motor configuration without optimization to be simulated
@@ -283,72 +206,6 @@ def buildMotor(motorCfg, hamCfg, canvasCfg, run=False, baseline=False, optimize=
         encodeModel.rebuiltModel.errorDict.printErrorsByAttr('description')
 
 
-def plotSlottingTrend(run=False):
-    '''
-    This is a function that tests the correlation of slot count to the primary waveform
-    '''
-
-    # TODO I dont think this is worth it since I can just reference Swissloop about slot counts but I cannot comment on the shifting
-    if not run:
-        return
-
-    from functools import reduce
-
-    motorCfg = {"slots": 16, "poles": 6, "length": 0.27, "windingShift": 2}
-    hamCfg = {"N": 100, "errorTolerance": 1e-15, "invertY": False,
-              "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
-              "mecRegions": {5: "mec"}}
-    canvasCfg = {"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2]),
-                 "showAirGapPlot": False, "showUnknowns": False, "showGrid": True, "showFields": False,
-                 "showFilter": False, "showMatrix": False, "showZeros": True}
-
-    def reduce_MMF(a, b):
-        if isinstance(a, Node):
-            return a.MMF + b.MMF
-        else:
-            return a + b.MMF
-
-    for slots in [16, 28, 40]:
-        motorCfg["slots"] = int(slots)
-        model = buildMotor(run=True, baseline=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
-        transposedMatrix = np.transpose(model.matrix)
-        x, y = [], []
-        for node in model.matrix[model.yIdxCenterAirGap]:
-            if node.xIndex in model.slotArray:
-                x.append(node.xIndex)
-        yIdxLower, yIdxUpper = model.yIndexesLowerSlot[0], model.yIndexesUpperSlot[-1]+1
-        for idx, column in enumerate(transposedMatrix):
-            if idx in model.slotArray:
-                # y.append(reduce(lambda a, b: a.MMF + b.MMF, column[yIdxLower:yIdxUpper]))
-                y.append(reduce(reduce_MMF, column[yIdxLower:yIdxUpper]))
-        plt.plot(x, y)
-        plt.show()
-
-
-def profile_main():
-
-    import cProfile, pstats, io
-
-    prof = cProfile.Profile()
-    prof = prof.runctx("main()", globals(), locals())
-
-    stream = io.StringIO()
-
-    stats = pstats.Stats(prof, stream=stream)
-    stats.sort_stats("time")  # or cumulative
-    stats.print_stats(80)  # 80 = how many to print
-
-    # The rest is optional.
-    # stats.print_callees()
-    # stats.print_callers()
-
-    # logging.info("Profile data:\n%s", stream.getvalue())
-
-    f = open(os.path.join(OUTPUT_PATH, 'profile.txt'), 'a')
-    f.write(stream.getvalue())
-    f.close()
-
-
 def main():
 
     # ___Baseline motor configurations___
@@ -358,28 +215,9 @@ def main():
                     "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
                     "mecRegions": {5: "mec"}},
                   canvasCfg={"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2]),
-                             "showAirGapPlot": False, "showUnknowns": False, "showGrid": True, "showFields": True,
+                             "showAirGapPlot": True, "showUnknowns": False, "showGrid": False, "showFields": False,
                              "showFilter": False, "showMatrix": False, "showZeros": True})
-
-    # ___Custom Configuration___
-    motorCfg = {"slots": 28, "poles": 6, "length": 0.27, "windingShift": 2}
-    hamCfg = {"N": 100, "errorTolerance": 1e-15, "invertY": False,
-              "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
-              "mecRegions": {5: "mec"}}
-    canvasCfg = {"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2]),
-                 "showAirGapPlot": False, "showUnknowns": False, "showGrid": True, "showFields": True,
-                 "showFilter": False, "showMatrix": False, "showZeros": True}
-
-    # ___Motor optimization___
-    platypus(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
-
-    # ___Custom motor model___
-    buildMotor(run=False, motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
-
-    # ___Slotting effect on primary waveform___
-    plotSlottingTrend(run=False)
 
 
 if __name__ == '__main__':
-    # profile_main()  # To profile the main execution
     main()

@@ -21,11 +21,6 @@ class Model(Grid):
 
         super().__init__(kwargs, buildBaseline)
 
-        self.writeErrorToDict(key='name',
-                              error=Error.buildFromScratch(name='meshDensityDiscrepancy',
-                                                           description="ERROR - The last slot has a different mesh density than all other slots",
-                                                           cause=kwargs['canvasCfg']['xMeshIndexes'][2] != kwargs['canvasCfg']['xMeshIndexes'][-3]))
-
         self.errorTolerance = kwargs['hamCfg']['errorTolerance']
 
         self.hmUnknownsList = {}
@@ -100,29 +95,31 @@ class Model(Grid):
             # Compare items between objects
             selfItems = list(filter(lambda x: True if x[0] not in removedAtts else False, self.__dict__.items()))
             otherItems = list(otherObject.__dict__.items())
-            for cnt, entry in enumerate(selfItems):
+            for cnt, (entryKey, entryVal) in enumerate(selfItems):
+                otherKey = otherItems[cnt][0]
+                otherVal = otherItems[cnt][1]
                 # Check keys are equal
-                if entry[0] == otherItems[cnt][0]:
+                if entryKey == otherKey:
                     # np.ndarray were converted to lists to dump data to json object, now compare against those lists
-                    if type(entry[1]) == np.ndarray:
+                    if type(entryVal) == np.ndarray:
                         # Greater than 1D array
-                        if len(entry[1].shape) > 1:
+                        if len(entryVal.shape) > 1:
                             # Check that 2D array are equal
-                            if np.all(np.all(entry[1] != otherItems[cnt][1], axis=1)):
+                            if np.all(np.all(entryVal != otherVal, axis=1)):
                                 equality = False
                         # 1D array
                         else:
-                            if entry[1].tolist() != otherItems[cnt][1]:
+                            if entryVal.tolist() != otherVal:
                                 # The contents of the array or list may be a deconstructed complex type
-                                if np.all(list(map(lambda val: val[1] == rebuildPlex(otherItems[cnt][1][val[0]]), enumerate(entry[1])))):
+                                if np.all(list(map(lambda val: val[1] == rebuildPlex(otherVal[val[0]]), enumerate(entryVal)))):
                                     pass
                                 else:
                                     equality = False
                     else:
-                        if entry[1] != otherItems[cnt][1]:
+                        if entryVal != otherVal:
                             # Check to see if keys of the value are equal to string versions of otherItems keys
                             try:
-                                if list(map(lambda x: str(x), entry[1].keys())) != list(otherItems[cnt][1].keys()):
+                                if list(map(lambda x: str(x), entryVal.keys())) != list(otherVal.keys()):
                                     equality = False
                             except AttributeError:
                                 pass
@@ -364,7 +361,8 @@ class Model(Grid):
         # Result
         self.matrixB[self.matBCount + node] = eastMMFNum / eastRelDenom - westMMFNum / westRelDenom
 
-    def __preEqn24_2018(self, lam_lower, lam_upper, y):
+    @staticmethod
+    def __preEqn24_2018(lam_lower, lam_upper, y):
 
         resA_lower = cmath.exp(lam_lower * y)
         resA_upper = - cmath.exp(lam_upper * y)
@@ -373,7 +371,8 @@ class Model(Grid):
 
         return resA_lower, resA_upper, resB_lower, resB_upper
 
-    def __preEqn25_2018(self, lam_lower, lam_upper, ur_lower, ur_upper, y):
+    @staticmethod
+    def __preEqn25_2018(lam_lower, lam_upper, ur_lower, ur_upper, y):
 
         resA_lower = (lam_lower / ur_lower) * cmath.exp(lam_lower * y)
         resA_upper = - (lam_upper / ur_upper) * cmath.exp(lam_upper * y)
@@ -382,7 +381,8 @@ class Model(Grid):
 
         return resA_lower, resA_upper, resB_lower, resB_upper
 
-    def postMECAvgB(self, fluxN, fluxP, S_xyz):
+    @staticmethod
+    def postMECAvgB(fluxN, fluxP, S_xyz):
 
         res = (fluxN + fluxP) / (2 * S_xyz)
 
@@ -509,7 +509,6 @@ class Model(Grid):
 
         return lNode, rNode
 
-    # TODO We can cache functions like this for time improvement
     def __boundaryInfo(self, iY1, iY2, boundaryType):
         if boundaryType == 'mec':
 
@@ -691,7 +690,6 @@ class Model(Grid):
         tempReal = np.array([j.real for j in dataArray[1]], dtype=np.float64)
 
         # Background shading slots
-        minY1, maxY1 = min(tempReal), max(tempReal)
         xPosLines = list(map(lambda x: x.x, self.matrix[0][self.slotArray[::self.ppSlot]]))
         for cnt, each in enumerate(xPosLines):
             plt.axvspan(each, each + self.ws, facecolor='b', alpha=0.15, label="_"*cnt + "slot regions")
@@ -707,7 +705,6 @@ class Model(Grid):
         tempReal = np.array([j.real for j in dataArray[2]], dtype=np.float64)
 
         # Background shading slots
-        minY1, maxY1 = min(tempReal), max(tempReal)
         xPosLines = list(map(lambda x: x.x, self.matrix[0][self.slotArray[::self.ppSlot]]))
         for cnt, each in enumerate(xPosLines):
             plt.axvspan(each, each + self.ws, facecolor='b', alpha=0.15, label="_"*cnt + "slot regions")
@@ -750,17 +747,19 @@ class Model(Grid):
 
         yBoundaryIncludeMec = self.__getYboundaryIncludeMEC()
 
-        # TODO There is potential here to use concurrent.futures.ProcessPoolExecutor since the indexing of the matrix A does not depend on previous boundary conditions
-        # TODO This will require me to change the way I pass the nLoop and matBCount from boundary condition to boundary condition. Instead these need to be constants
         hmMec = True
         cnt, hmCnt, mecCnt = 0, 0, 0
         iY1, nextY1 = 0, yBoundaryIncludeMec[0] + 1
         for region in self.getFullRegionDict():
             if region.split('_')[0] != 'vac':
                 prevReg, nextReg = self.getLastAndNextRegionName(region)
-                if nextReg != None:
+                if nextReg is not None:
                     if nextReg.split('_')[0] != 'vac':
                         _, nextnextReg = self.getLastAndNextRegionName(nextReg)
+                    else:
+                        nextnextReg = None
+                else:
+                    nextnextReg = None
                 for bc in self.getFullRegionDict()[region]['bc'].split(', '):
 
                     # Mec region calculation
@@ -779,7 +778,6 @@ class Model(Grid):
                                     params['hmRegCountOffset2'] = self.hmRegionsIndex[hmCnt + 1]
                                     params['removed_an'] = True if nextReg.split('_')[0] == 'vac' else False
 
-                                # TODO We can try to cache these kind of functions for speed
                                 getattr(self, bc)(**params)
 
                                 node += 1
@@ -815,9 +813,11 @@ class Model(Grid):
                                       'lowerUpper': 'lower' if hmMec else 'upper'}
                             hmMec = not hmMec
 
+                        else:
+                            params = None
+
                         for nHM in self.n:
                             params['nHM'] = nHM
-                            # TODO We can try to cache these kind of functions for speed
                             getattr(self, bc)(**params)
 
                         # This conditional sets all the indices for the loop
@@ -881,7 +881,7 @@ class Model(Grid):
                 matIdx += 2 * len(self.n)
 
         # Unknowns in MEC regions
-        for mecCnt, val in enumerate(self.mecRegions):
+        for _ in self.mecRegions:
             Cnt = 0
             i, j = self.yIndexesMEC[0], 0
             while i < self.yIndexesMEC[-1] + 1:
@@ -1046,190 +1046,11 @@ class Model(Grid):
                                                                description="ERROR - Kirchhoff's current law is violated",
                                                                cause=True))
 
-        # Thrust Calculation
-        centerAirgap_y = self.matrix[self.yIdxCenterAirGap][0].yCenter
-
-        ur = self.matrix[self.yIdxCenterAirGap, 0].ur
-        sigma = self.matrix[self.yIdxCenterAirGap, 0].sigma
-
-        resFx, resFy = np.cdouble(0), np.cdouble(0)
-        thrustGenerator = self.__genForces(ur * sigma, centerAirgap_y)
-        for (x, y) in thrustGenerator:
-            resFx += x
-            resFy += y
-
-        resFx *= - j_plex * self.D * self.Tper / (2 * uo)
-        resFy *= - self.D * self.Tper / (4 * uo)
-        self.Fx = resFx
-        self.Fy = resFy
-        print(f'Fx: {round(self.Fx.real, 2)}N,', f'Fy: {round(self.Fy.real, 2)}N')
-
         if canvasCfg["showAirGapPlot"]:
             self.__plotPointsAlongX(self.yIdxCenterAirGap, invertY=invertY)
         if canvasCfg["showUnknowns"]:
             self.__plotPointsAlongHM(self.yIdxCenterAirGap)
 
 
-# noinspection PyGlobalUndefined
-def complexFourierTransform(model_in, harmonics_in):
-    """
-    This function was written to plot the Bx field at the boundary between the coils and the airgap,
-     described in equation 24 of the 2019 paper. The Bx field is piecewise-continuous and is plotted in Blue.
-     The complex Fourier transform was applied to the Bx field and plotted in Red. The accuracy of the
-     complex Fourier transform depends on: # of harmonics, # of x positions, # of nodes in the x-direction of the model
-
-    A perfect complex Fourier transform extends harmonics to +-Inf, while the 0th harmonic is accounted for in the
-     c_0 term. Since the Bx field does not have a y-direction offset, this term can be neglected.
-    """
-
-    global row_FT, expandedLeftNodeEdges, slices, idx_FT, harmonics, model
-
-    model = model_in
-
-    idx_FT = 0
-    harmonics = harmonics_in
-
-    yIdx_lower = model.yIndexesMEC[0]
-    yIdx_upper = model.yIndexesMEC[-1]
-    row_FT = model.matrix[yIdx_lower]
-    leftNodeEdges = [node.x for node in row_FT]
-    slices = 5
-    outerIdx, increment = 0, 0
-    expandedLeftNodeEdges = list(np.zeros(len(leftNodeEdges) * slices, dtype=np.float64))
-    for idx in range(len(expandedLeftNodeEdges)):
-        if idx % slices == 0:
-            increment = 0
-            if idx != 0:
-                outerIdx += 1
-        else:
-            increment += 1
-        sliceWidth = row_FT[outerIdx].lx / slices
-        expandedLeftNodeEdges[idx] = row_FT[outerIdx].x + increment * sliceWidth
-
-    # noinspection PyGlobalUndefined
-    def fluxAtBoundary():
-        global row_FT, idx_FT, model
-
-        lNode, rNode = model.neighbourNodes(idx_FT)
-        phiXn = (row_FT[idx_FT].MMF + row_FT[lNode].MMF) \
-                / (row_FT[idx_FT].Rx + row_FT[lNode].Rx)
-        phiXp = (row_FT[idx_FT].MMF + row_FT[rNode].MMF) \
-                / (row_FT[idx_FT].Rx + row_FT[rNode].Rx)
-        return phiXn, phiXp
-
-    # noinspection PyGlobalUndefined
-    @lru_cache(maxsize=5)
-    def pieceWise(x_in):
-        global row_FT, idx_FT, model
-
-        if x_in in leftNodeEdges[1:]:
-            idx_FT += 1
-
-        phiXn, phiXp = fluxAtBoundary()
-
-        return model.postMECAvgB(phiXn, phiXp, row_FT[idx_FT].Szy)
-
-    # noinspection PyGlobalUndefined
-    @lru_cache(maxsize=5)
-    def fourierSeries(x_in):
-        global row_FT, idx_FT, model
-        sumN = 0.0
-        for nHM in harmonics:
-            wn = 2 * nHM * pi / model.Tper
-            # TODO *=2 if matching BC, correct without 2 though!
-            #  we should try to multipy * 100 factor without 2 to see if it is closer
-            coeff = j_plex / (wn * model.Tper)
-            sumK = 0.0
-            for iX in range(len(row_FT)):
-                idx_FT = iX
-                phiXn, phiXp = fluxAtBoundary()
-                f = model.postMECAvgB(phiXn, phiXp, row_FT[iX].Szy)
-                Xl = row_FT[iX].x
-                Xr = Xl + row_FT[iX].lx
-                resExp = cmath.exp(-j_plex * wn * (Xr - model.vel * model.t))\
-                         - cmath.exp(-j_plex * wn * (Xl - model.vel * model.t))
-
-                sumK += f * resExp
-
-            sumN += coeff * sumK * cmath.exp(j_plex * wn * x_in)
-
-        return sumN
-
-    vfun = np.vectorize(pieceWise)
-    idx_FT = 0
-    x = expandedLeftNodeEdges
-    y1 = vfun(x)
-    vfun = np.vectorize(fourierSeries)
-    y2 = vfun(x)
-
-    # Background shading slots
-    minY1, maxY1 = min(y2), max(y2)
-    xPosLines = list(map(lambda x: x.x, model.matrix[0][model.slotArray[::model.ppSlot]]))
-    # for cnt, each in enumerate(xPosLines):
-    #     plt.axvspan(each, each + model.ws, facecolor='b', alpha=0.15, label="_" * cnt + "slot regions")
-    # plt.legend()
-    # plt.savefig('demo.png', transparent=True)
-
-    plt.plot(x, y1, 'b-')
-    plt.plot(x, y2, 'r-')
-    plt.xlabel('Position [m]')
-    plt.ylabel('Bx [T]')
-    plt.title('Bx field at airgap Boundary')
-    # plt.show()
-
-    return x, y1
-
-
-def plotFourierError():
-
-    iterations = 1
-    step = 2
-    start = 6
-    pixDivs = range(start, start + iterations * step, step)
-    modelList = np.empty(len(pixDivs), dtype=ndarray)
-
-    lowDiscrete = 50
-    n = range(-lowDiscrete, lowDiscrete + 1)
-    n = np.delete(n, len(n) // 2, 0)
-    slots = 16
-    poles = 6
-    wt, ws = 6 / 1000, 10 / 1000
-    slotpitch = wt + ws
-    endTeeth = 2 * (5/3 * wt)
-    length = ((slots - 1) * slotpitch + ws) + endTeeth
-    meshDensity = np.array([4, 2])
-    xMeshIndexes = [[0, 0]] + [[0, 0]] + [[0, 0], [0, 0]] * (slots - 1) + [[0, 0]] + [[0, 0]] + [[0, 0]]
-    # [LowerVac], [Yoke], [LowerSlots], [UpperSlots], [Airgap], [BladeRotor], [BackIron], [UpperVac]
-    yMeshIndexes = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
-    canvasSpacing = 80
-
-    for idx, pixelDivisions in enumerate(pixDivs):
-
-        pixelSpacing = slotpitch / pixelDivisions
-        regionCfg1 = {'hmRegions': {1: 'vac_lower', 2: 'bi', 3: 'dr', 4: 'g', 6: 'vac_upper'},
-                      'mecRegions': {5: 'mec'},
-                      'invertY': False}
-        choiceRegionCfg = regionCfg1
-
-        loopedModel = Model.buildFromScratch(slots=slots, poles=poles, length=length, n=n,
-                                             pixelSpacing=pixelSpacing, canvasSpacing=canvasSpacing,
-                                             meshDensity=meshDensity, meshIndexes=[xMeshIndexes, yMeshIndexes],
-                                             hmRegions=choiceRegionCfg['hmRegions'],
-                                             mecRegions=choiceRegionCfg['mecRegions'],
-                                             errorTolerance=1e-15,
-                                             # If invertY = False -> [LowerSlot, UpperSlot, Yoke]
-                                             invertY=choiceRegionCfg['invertY'])
-
-        loopedModel.buildGrid(pixelSpacing=pixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
-        loopedModel.finalizeGrid()
-        modelList[idx] = ((pixelDivisions, loopedModel.ppL, loopedModel.ppH), complexFourierTransform(loopedModel, n))
-
-    for (pixelDivisions, ppL, ppH), (xSequence, ySequence) in modelList:
-        plt.plot(xSequence, ySequence, label=f'PixelDivs: {pixelDivisions}, (ppL, ppH): {(ppL, ppH)}')
-
-    # plt.legend()
-    plt.show()
-
-
 if __name__ == '__main__':
-    plotFourierError()
+    pass

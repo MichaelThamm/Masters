@@ -1,7 +1,6 @@
 from builtins import list
 from numpy.core._multiarray_umath import ndarray
 from LIM.SlotPoleCalculation import*
-from collections import deque
 
 PP_SLOTHEIGHT = 'ppSlotHeight'
 
@@ -40,11 +39,8 @@ class Grid(LimMotor):
 
         # Turn inputs into attributes
         self.invertY = kwargs['hamCfg']['invertY']
-        xMeshIndexes = kwargs['canvasCfg']['xMeshIndexes']
-        yMeshIndexes = kwargs['canvasCfg']['yMeshIndexes']
         self.Spacing = kwargs['motorCfg']['length'] / kwargs['motorCfg']['slots'] / kwargs['canvasCfg']['pixDiv']
         self.Cspacing = kwargs['canvasCfg']['canvasSpacing'] / self.H
-        self.meshDensity = kwargs['canvasCfg']['meshDensity']
         self.hmRegions = kwargs['hamCfg']['hmRegions']
         self.mecRegions = kwargs['hamCfg']['mecRegions']
         self.allMecRegions = not self.hmRegions
@@ -70,8 +66,6 @@ class Grid(LimMotor):
         self.yListPixelsPerRegion = []
         self.yIndexesHM, self.yIndexesMEC = [], []
         self.xBoundaryList, self.yBoundaryList = [], []
-
-        self.yMeshSizes = []
 
         # X-direction
         self.ppSlotpitch = self.setPixelsPerLength(length=self.slotpitch, minimum=2)
@@ -110,11 +104,6 @@ class Grid(LimMotor):
 
         self.toothArray, self.slotArray, self.bufferArray = np.zeros((3, 1), dtype=np.int16)
 
-        self.xMeshSizes = np.zeros(len(xMeshIndexes), dtype=np.float64)
-
-        # Mesh sizing
-        self.fractionSize = (1 / self.meshDensity[0] + 1 / self.meshDensity[1])
-
         self.mecRegionLength = self.ppMEC * self.ppL
         self.modelHeight = 0
         for region, values in self.getFullRegionDict().items():
@@ -127,12 +116,14 @@ class Grid(LimMotor):
 
         self.xListSpatialDatum = [self.Airbuffer, self.endTooth] + [self.ws, self.wt] * (self.slots - 1) + [self.ws, self.endTooth, self.Airbuffer]
         self.xListPixelsPerRegion = [self.ppAirBuffer, self.ppEndTooth] + [self.ppSlot, self.ppTooth] * (self.slots - 1) + [self.ppSlot, self.ppEndTooth, self.ppAirBuffer]
+        self.xMeshSizes = np.zeros(len(self.xListSpatialDatum), dtype=np.float64)
         for Cnt in range(len(self.xMeshSizes)):
-            self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt], self.Spacing, self.fractionSize, sum(xMeshIndexes[Cnt]), self.meshDensity)
+            self.xMeshSizes[Cnt] = meshBoundary(self.xListSpatialDatum[Cnt], self.xListPixelsPerRegion[Cnt])
             if self.xMeshSizes[Cnt] < 0:
                 print('negative x mesh sizes', Cnt)
                 return
 
+        self.yMeshSizes = []
         offsetList = []
         cnt, offsetLower, offsetUpper = 0, 0, 0
         for region in self.getFullRegionDict():
@@ -147,8 +138,7 @@ class Grid(LimMotor):
                     pixelVal = self.__dict__[pixelKey] // 2 if pixelKey == PP_SLOTHEIGHT else self.__dict__[pixelKey]
                     spatialVal = self.__dict__[spatial] / 2 if pixelKey == PP_SLOTHEIGHT else self.__dict__[spatial]
                     self.yListPixelsPerRegion.append(pixelVal)
-                    self.yMeshSizes.append(meshBoundary(spatialVal, pixelVal, self.Spacing, self.fractionSize,
-                                                        sum(yMeshIndexes[cnt]), self.meshDensity))
+                    self.yMeshSizes.append(meshBoundary(spatialVal, pixelVal))
                     cnt += 1
 
         # Initialize the y-axis index attributes format: self.yIndexes___
@@ -739,7 +729,7 @@ class Node(object):
 
         vacHeight = model.vac/model.ppVac
         ResX = self.lx / (2 * uo * self.ur * self.Szy)
-        if model.allMecRegions and self.yIndex in [0, model.ppH - 1]:  #  MEC non-continuous boundary
+        if model.allMecRegions and self.yIndex in [0, model.ppH - 1]:  # MEC non-continuous boundary
             ResY = np.inf
         elif isVac:  # Create a fake vac node
             ResY = vacHeight / (2 * uo * self.ur * self.Sxz)
@@ -778,8 +768,8 @@ class Region(object):
         return cls(kwargs=jsonObject, buildFromJson=True)
 
 
-def meshBoundary(spatial, pixels, spacing, fraction, numBoundaries, meshDensity):
+def meshBoundary(spatial, pixels):
 
-    meshSize = (spatial - numBoundaries*fraction*spacing) / (pixels - len(meshDensity)*numBoundaries)
+    meshSize = spatial / pixels
 
     return meshSize
