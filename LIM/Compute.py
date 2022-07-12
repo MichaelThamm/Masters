@@ -96,6 +96,7 @@ class Model(Grid):
             selfItems = list(filter(lambda x: True if x[0] not in removedAtts else False, self.__dict__.items()))
             otherItems = list(otherObject.__dict__.items())
             for cnt, (entryKey, entryVal) in enumerate(selfItems):
+
                 otherKey = otherItems[cnt][0]
                 otherVal = otherItems[cnt][1]
                 # Check keys are equal
@@ -601,48 +602,6 @@ class Model(Grid):
     def __lambda_n(self, wn, urSigma):
         return cmath.sqrt(wn ** 2 + j_plex * uo * urSigma * (2 * pi * self.f + wn * self.vel))
 
-    def __genForces(self, urSigma, iY):
-
-        Cnt = 0
-        for nHM in self.n:
-            gIdx = list(self.hmRegions.keys())[list(self.hmRegions.values()).index('g')]
-            an = self.hmUnknownsList[gIdx].an[Cnt]
-            bn = self.hmUnknownsList[gIdx].bn[Cnt]
-            an_, bn_ = np.conj(an), np.conj(bn)
-
-            wn = 2 * nHM * pi / self.Tper
-            lambdaN = self.__lambda_n(wn, urSigma)
-            lambdaN_ = np.conj(lambdaN)
-
-            aExp = cmath.exp(lambdaN * iY)
-            bExp = cmath.exp(- lambdaN * iY)
-
-            aExp_ = cmath.exp(lambdaN_ * iY)
-            bExp_ = cmath.exp(- lambdaN_ * iY)
-
-            # Fx variable declaration
-            knownExpCoeffFx = an * aExp - bn * bExp
-            knownExpCoeffFx_ = an_ * aExp_ + bn_ * bExp_
-            termFx = lambdaN * wn * knownExpCoeffFx * knownExpCoeffFx_
-
-            # Fy variable declaration
-            coeffFy1 = lambdaN * lambdaN_
-            coeffFy2 = wn ** 2
-            knownExpCoeffFy1 = an * aExp - bn * bExp
-            knownExpCoeffFy1_ = an_ * aExp_ - bn_ * bExp_
-            termFy1 = knownExpCoeffFy1 * knownExpCoeffFy1_
-            knownExpCoeffFy2 = an * aExp + bn * bExp
-            knownExpCoeffFy2_ = an_ * aExp_ + bn_ * bExp_
-            termFy2 = knownExpCoeffFy2 * knownExpCoeffFy2_
-
-            # Thrust result
-            Fx = termFx
-            Fy = coeffFy1 * termFy1 - coeffFy2 * termFy2
-
-            Cnt += 1
-
-            yield Fx, Fy
-
     def __plotPointsAlongHM(self, iY):
         lineWidth = 2
         markerSize = 5
@@ -1050,7 +1009,3 @@ class Model(Grid):
             self.__plotPointsAlongX(self.yIdxCenterAirGap, invertY=invertY)
         if canvasCfg["showUnknowns"]:
             self.__plotPointsAlongHM(self.yIdxCenterAirGap)
-
-
-if __name__ == '__main__':
-    pass

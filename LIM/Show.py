@@ -188,7 +188,7 @@ def visualizeMatrix(dims, model, ogModel, bShowA=False, bShowB=False):
     cMat.mainloop()
 
 
-def showModel(jsonObject, ogModel, canvasCfg, fieldType, numColours, dims, invertY):
+def showModel(jsonObject, ogModel, canvasCfg, numColours, dims, invertY):
 
     invertCoeff = -1 if invertY else 1
 
@@ -238,14 +238,14 @@ def showModel(jsonObject, ogModel, canvasCfg, fieldType, numColours, dims, inver
 
         filteredRows, filteredRowCols = combineFilterList([jsonObject.rebuiltModel.ppH, jsonObject.rebuiltModel.ppL], keepRows, keepRowColsUnfiltered)
 
-        minScale, maxScale = minMaxField(jsonObject, fieldType, [filteredRows, filteredRowCols], canvasCfg["showFilter"])
+        minScale, maxScale = minMaxField(jsonObject, canvasCfg["fieldType"], [filteredRows, filteredRowCols], canvasCfg["showFilter"])
         normScale = (maxScale - minScale) / (numColours - 1)
 
         if [minScale, maxScale, normScale] == [0, 0, 0]:
 
             jsonObject.rebuiltModel.writeErrorToDict(key='name',
                                    error=Error.buildFromScratch(name='emptyField',
-                                                                description=f'Field Analysis Error. All values are zero! Type: {fieldType}',
+                                                                description=f'Field Analysis Error. All values are zero! Type: {canvasCfg["fieldType"]}',
                                                                 cause=True))
 
         # Create fields canvas to display the selected field result on the mesh
@@ -253,8 +253,8 @@ def showModel(jsonObject, ogModel, canvasCfg, fieldType, numColours, dims, inver
             fieldsScale = np.arange(minScale, maxScale + normScale, normScale)
             colorScaleIndex = np.where(fieldsScale == fieldsScale[0])
 
-            cFields.canvas.create_text(400, 1000, font="Purisa", text=f"Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {fieldType}")
-            print(f"Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {fieldType}")
+            cFields.canvas.create_text(400, 1000, font="Purisa", text=f"Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {canvasCfg['fieldType']}")
+            print(f"Debug (Max, Min): ({maxScale}, {minScale}) colour: ({stoColours[-1]}, {stoColours[colorScaleIndex[0][0]]}) Type: {canvasCfg['fieldType']}")
 
             # All drawing is done at the bottom of the node
             def horCoreBoundary(tuple_in):
@@ -304,14 +304,14 @@ def showModel(jsonObject, ogModel, canvasCfg, fieldType, numColours, dims, inver
                     if canvasCfg["showFilter"]:
                         if i in filteredRows or (i, j) in filteredRowCols:
                             overRideColour = determineColour(jsonObject, i, j,
-                                                             [fieldType, fieldsScale, stoColours, cPosInf, cNegInf],
+                                                             [canvasCfg["fieldType"], fieldsScale, stoColours, cPosInf, cNegInf],
                                                              highlightZeroValsInField=canvasCfg["showZeros"])
 
                         else:
                             overRideColour = '#000000'
                     else:
                         overRideColour = determineColour(jsonObject, i, j,
-                                                         [fieldType, fieldsScale, stoColours, cPosInf, cNegInf],
+                                                         [canvasCfg["fieldType"], fieldsScale, stoColours, cPosInf, cNegInf],
                                                          highlightZeroValsInField=canvasCfg["showZeros"])
 
                     jsonObject.rebuiltModel.matrix[i, j].drawNode(canvasSpacing=jsonObject.rebuiltModel.Cspacing,

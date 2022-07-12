@@ -197,7 +197,7 @@ def buildMotor(motorCfg, hamCfg, canvasCfg, run=False, baseline=False, optimize=
         # iDims (height x width): BenQ = 1440 x 2560, ViewSonic = 1080 x 1920
         # model is only passed in to showModel to show the matrices A and B since they are not stored in the json object
         # TODO This invertY inverts the Tkinter Canvas plot
-        showModel(encodeModel, model, canvasCfg, fieldType='B', numColours=20, dims=[1080, 1920], invertY=False)
+        showModel(encodeModel, model, canvasCfg, numColours=20, dims=[1080, 1920], invertY=False)
         print('   - there are no errors')
         return model
     else:
@@ -214,8 +214,8 @@ def main():
                   hamCfg={"N": 100, "errorTolerance": 1e-15, "invertY": False,
                     "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
                     "mecRegions": {5: "mec"}},
-                  canvasCfg={"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2]),
-                             "showAirGapPlot": True, "showUnknowns": False, "showGrid": False, "showFields": False,
+                  canvasCfg={"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2]), "fieldType": "B",
+                             "showAirGapPlot": True, "showUnknowns": False, "showGrid": False, "showFields": True,
                              "showFilter": False, "showMatrix": False, "showZeros": True})
 
 
