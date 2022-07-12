@@ -1221,7 +1221,7 @@ def plotFourierError():
                                              invertY=choiceRegionCfg['invertY'])
 
         loopedModel.buildGrid(pixelSpacing=pixelSpacing, meshIndexes=[xMeshIndexes, yMeshIndexes])
-        loopedModel.finalizeGrid(pixelDivisions)
+        loopedModel.finalizeGrid()
         modelList[idx] = ((pixelDivisions, loopedModel.ppL, loopedModel.ppH), complexFourierTransform(loopedModel, n))
 
     for (pixelDivisions, ppL, ppH), (xSequence, ySequence) in modelList:

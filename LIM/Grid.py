@@ -171,7 +171,7 @@ class Grid(LimMotor):
         self.Fx = 0.0
         self.Fy = 0.0
 
-    def buildGrid(self, xMeshIndexes, yMeshIndexes):
+    def buildGrid(self):
 
         #  Initialize grid with Nodes
         listOffset = self.ppAirBuffer + self.ppEndTooth
@@ -256,53 +256,6 @@ class Grid(LimMotor):
             coilOffset = idx*self.ppSlot
             self.removeLowerCoilIdxs += self.slotArray[coilOffset:coilOffset + self.ppSlot]
 
-        # MeshIndexes is a list of 1s and 0s for each boundary for each region to say whether or not
-        #  dense meshing is required at the boundary
-        # X Mesh Density
-        Cnt = 0
-        idxOffset = self.xListPixelsPerRegion[Cnt]
-        idxLeft, idxRight = 0, idxOffset
-        idxList = range(self.ppL)
-        for boundary in xMeshIndexes:
-            if boundary[0]:  # Left Boundary in the region
-                firstIndexes = idxList[idxLeft]
-                secondIndexes = idxList[idxLeft + 1]
-                self.xFirstEdgeNodes.append(firstIndexes)
-                self.xSecondEdgeNodes.append(secondIndexes)
-            if boundary[1]:  # Right Boundary in the region
-                firstIndexes = idxList[idxRight - 1]
-                secondIndexes = idxList[idxRight - 2]
-                self.xFirstEdgeNodes.append(firstIndexes)
-                self.xSecondEdgeNodes.append(secondIndexes)
-            idxLeft += idxOffset
-            if Cnt < len(self.xListPixelsPerRegion) - 1:
-                idxOffset = self.xListPixelsPerRegion[Cnt+1]
-            idxRight += idxOffset
-            Cnt += 1
-
-        # Y Mesh Density
-        Cnt = 0
-        idxOffset = self.yListPixelsPerRegion[Cnt]
-        idxLeft, idxRight = 0, idxOffset
-        # TODO Here - yMeshIndexes is not robust since removal of an and bn prior
-        idxList = range(self.ppH)
-        for boundary in yMeshIndexes:
-            if boundary[0]:  # Left Boundary in the region
-                firstIndexes = idxList[idxLeft]
-                secondIndexes = idxList[idxLeft + 1]
-                self.yFirstEdgeNodes.append(firstIndexes)
-                self.ySecondEdgeNodes.append(secondIndexes)
-            if boundary[1]:  # Right Boundary in the region
-                firstIndexes = idxList[idxRight - 1]
-                secondIndexes = idxList[idxRight - 2]
-                self.yFirstEdgeNodes.append(firstIndexes)
-                self.ySecondEdgeNodes.append(secondIndexes)
-            idxLeft += idxOffset
-            if Cnt < len(self.yListPixelsPerRegion) - 1:
-                idxOffset = self.yListPixelsPerRegion[Cnt+1]
-            idxRight += idxOffset
-            Cnt += 1
-
         self.xBoundaryList = [self.bufferArray[self.ppAirBuffer - 1],
                               self.toothArray[self.ppEndTooth - 1]] + self.slotArray[self.ppSlot - 1::self.ppSlot] \
                              + self.toothArray[self.ppEndTooth + self.ppTooth - 1:-self.ppEndTooth:self.ppTooth] + [self.toothArray[-1],
@@ -316,33 +269,18 @@ class Grid(LimMotor):
 
             xCnt = 0
             # Keep track of the y coordinate for each node
-            if a in self.yFirstEdgeNodes:
-                delY = self.Spacing / self.meshDensity[0]
-            elif a in self.ySecondEdgeNodes:
-                delY = self.Spacing / self.meshDensity[1]
-            else:
-                delY = self.yMeshSizes[c]
+            delY = self.yMeshSizes[c]
 
             while b < self.ppL:
 
                 # Keep track of the x coordinate for each node
-                if b in self.xFirstEdgeNodes:
-                    delX = self.Spacing / self.meshDensity[0]
-                elif b in self.xSecondEdgeNodes:
-                    delX = self.Spacing / self.meshDensity[1]
-                else:
-                    delX = self.xMeshSizes[d]
+                delX = self.xMeshSizes[d]
 
                 self.matrix[a][b] = Node.buildFromScratch(iIndex=[b, a], iXinfo=[xCnt, delX], iYinfo=[yCnt, delY],
                                                           modelDepth=self.D)
 
                 # Keep track of the x coordinate for each node
-                if b in self.xFirstEdgeNodes:
-                    xCnt += self.Spacing / self.meshDensity[0]
-                elif b in self.xSecondEdgeNodes:
-                    xCnt += self.Spacing / self.meshDensity[1]
-                else:
-                    xCnt += delX
+                xCnt += delX
 
                 if b in self.xBoundaryList:
                     d += 1
@@ -352,12 +290,7 @@ class Grid(LimMotor):
             d = 0
 
             # Keep track of the y coordinate for each node
-            if a in self.yFirstEdgeNodes:
-                yCnt += self.Spacing / self.meshDensity[0]
-            elif a in self.ySecondEdgeNodes:
-                yCnt += self.Spacing / self.meshDensity[1]
-            else:
-                yCnt += delY
+            yCnt += delY
 
             # TODO We cannot have the last row in this list so it must be unwritten
             if a in self.yBoundaryList:
@@ -434,7 +367,7 @@ class Grid(LimMotor):
             b = 0
             a += 1
 
-    def finalizeGrid(self, pixelDivisions):
+    def finalizeGrid(self):
         spatialDomainFlag = False
 
         # Define Indexes

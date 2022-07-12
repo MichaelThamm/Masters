@@ -251,26 +251,14 @@ def buildMotor(motorCfg, hamCfg, canvasCfg, run=False, baseline=False, optimize=
     if not run:
         return
 
-    # TODO yMeshIndexes needs to incorporate invertY and the removal of Dirichlet indexes
-    # Change the mesh density at boundaries. A 1 indicates denser mesh at a size of len(meshDensity)
-    # [LeftAirBuffer], [LeftEndTooth], [Slots], [FullTeeth], [LastSlot], [RightEndTooth], [RightAirBuffer]
-    xMeshIndexes = [[0, 0]] + [[0, 0]] + [[0, 0], [0, 0]] * (motorCfg["slots"] - 1) + [[0, 0]] + [[0, 0]] + [[0, 0]]
-    # [LowerVac], [Yoke], [LowerSlots], [UpperSlots], [Airgap], [BladeRotor], [BackIron], [UpperVac]
-    yMeshIndexes = [[0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0], [0, 0]]
-    canvasCfg['xMeshIndexes'] = xMeshIndexes
-    canvasCfg['yMeshIndexes'] = yMeshIndexes
-
-    # Efficient to simulate at pixDiv >= 10, but fastest at pixDiv = 2
-    pixelDivisions = canvasCfg['pixDiv']
-
     # Object for the model design, grid, and matrices
     if baseline:
         model = Model.buildBaseline(motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
     else:
         model = Model.buildFromScratch(motorCfg=motorCfg, hamCfg=hamCfg, canvasCfg=canvasCfg)
 
-    model.buildGrid(xMeshIndexes, yMeshIndexes)
-    model.finalizeGrid(pixelDivisions)
+    model.buildGrid()
+    model.finalizeGrid()
     errorInX = model.finalizeCompute()
     # TODO This invertY inverts the pyplot
     model.updateGrid(errorInX, canvasCfg=canvasCfg, invertY=True)
