@@ -191,8 +191,8 @@ class Grid(LimMotor):
 
         leftRemoveUpper = consecutiveCount(self.removeUpperCoils)
         leftRemoveLower = consecutiveCount(self.removeLowerCoils)
-        upperSlotArray = self.slotArray[leftRemoveUpper:-(len(self.removeUpperCoils)-leftRemoveUpper)]
-        lowerSlotArray = self.slotArray[leftRemoveLower:-(len(self.removeLowerCoils)-leftRemoveLower)]
+        upperSlotArray = self.slotArray[leftRemoveUpper*offset:-(len(self.removeUpperCoils)-leftRemoveUpper)*offset]
+        lowerSlotArray = self.slotArray[leftRemoveLower*offset:-(len(self.removeLowerCoils)-leftRemoveLower)*offset]
         upper_slotArrayA, upper_slotArrayB, upper_slotArrayC = [], [], []
         lower_slotArrayA, lower_slotArrayB, lower_slotArrayC = [], [], []
         for threeSlots in range(0, self.slots, 3):
@@ -373,12 +373,19 @@ class Grid(LimMotor):
         # Scaling values for MMF-source distribution in section 2.2, equation 18, figure 5
         fraction = 0.5
         doubleBias = self.ppSlotHeight - fraction
+        # TODO What if I scaled this exponentially towards the yoke
         doubleCoilScaling = np.arange(fraction, doubleBias + fraction, 1)
         if self.invertY:
             doubleCoilScaling = np.flip(doubleCoilScaling)
 
         scalingLower, scalingUpper = 0.0, 0.0
         time_plex = cmath.exp(j_plex * 2 * pi * self.f * self.t)
+        # TODO I have convinced myself that this is correct since 2018 and 2019 have 2*K_c in the denominator which is
+        #  consistent with K elements in a row so K_c would be K_c elements in a coil. I am still a little confused
+        #  why it is 2*K_c, maybe because there are 2 ends to the coil or because half the slot is filled???
+        #  In 2018, the MMF Fy and Fx both use Fc which only accounts for MMF in the Z direction. This paper also uses
+        #  Fc for the Phi_y eqns although 2019 only uses it for Phi_x eqns. We cannot use 2015 for help since this paper
+        #  uses the HM region as flux source to MEC
         turnAreaRatio = self.ppSlot
         i, j = 0, 0
         tempTesting = 1

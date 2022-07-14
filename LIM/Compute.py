@@ -713,10 +713,6 @@ class Model(Grid):
                 if nextReg is not None:
                     if nextReg.split('_')[0] != 'vac':
                         _, nextnextReg = self.getLastAndNextRegionName(nextReg)
-                    else:
-                        nextnextReg = None
-                else:
-                    nextnextReg = None
                 for bc in self.getFullRegionDict()[region]['bc'].split(', '):
 
                     # Mec region calculation
@@ -783,6 +779,7 @@ class Model(Grid):
                             # Increment cnt for all hmHm boundaries
                             if bc == 'hmHm':
                                 hmCnt += 1
+                                # todo This will use an outdated value of nextnextReg in the last iteration which can be wrong
                                 if nextReg != 'mec' and nextnextReg.split('_')[0] != 'vac':
                                     cnt += 1
                             # Increment mecCnt only if leaving the mec region

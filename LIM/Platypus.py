@@ -214,8 +214,8 @@ def main():
                   hamCfg={"N": 100, "errorTolerance": 1e-15, "invertY": False,
                     "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
                     "mecRegions": {5: "mec"}},
-                  canvasCfg={"pixDiv": 2, "canvasSpacing": 80, "meshDensity": np.array([4, 2]), "fieldType": "B",
-                             "showAirGapPlot": True, "showUnknowns": False, "showGrid": False, "showFields": False,
+                  canvasCfg={"pixDiv": 5, "canvasSpacing": 80, "fieldType": "B",
+                             "showAirGapPlot": True, "showUnknowns": False, "showGrid": True, "showFields": False,
                              "showFilter": False, "showMatrix": False, "showZeros": True})
 
 
