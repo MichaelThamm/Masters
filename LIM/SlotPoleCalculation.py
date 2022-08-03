@@ -24,8 +24,8 @@ class LimMotor(object):
         self.errorDict = TransformedDict.buildFromScratch()
 
         self.copper = Material(1, 8.96, 5.96 * 10 ** 7, 1.72 * 10 ** (-8))
-        self.alum = Material(1, 8.96, 17.0 * 10 ** 6, None)
-        self.air = Material(1, 8.96, 0, None)
+        self.alum = Material(1, 2.7, 17.0 * 10 ** 6, None)
+        self.air = Material(1, None, 0, None)
         self.iron = Material(1000, 7.8, 4.5 * 10 ** 6, None)
         self.insul = Material(None, 1.4, None, None)
 

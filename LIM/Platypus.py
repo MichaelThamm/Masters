@@ -211,7 +211,7 @@ def main():
     # ___Baseline motor configurations___
     buildMotor(run=True, baseline=True, motorCfg={"slots": 16, "poles": 6, "length": 0.27, "windingShift": 2},
                   # If invertY == False -> [LowerSlot, UpperSlot, Yoke]
-                  hamCfg={"N": 100, "errorTolerance": 1e-15, "invertY": False,
+                  hamCfg={"N": 100, "errorTolerance": 1e-14, "invertY": False,
                     "hmRegions": {1: "vac_lower", 2: "bi", 3: "dr", 4: "g", 6: "vac_upper"},
                     "mecRegions": {5: "mec"}},
                   canvasCfg={"pixDiv": 5, "canvasSpacing": 80, "fieldType": "B",

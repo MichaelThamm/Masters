@@ -373,8 +373,14 @@ class Grid(LimMotor):
         # Scaling values for MMF-source distribution in section 2.2, equation 18, figure 5
         fraction = 0.5
         doubleBias = self.ppSlotHeight - fraction
-        # TODO What if I scaled this exponentially towards the yoke
         doubleCoilScaling = np.arange(fraction, doubleBias + fraction, 1)
+        borderCoilScaling = doubleCoilScaling[0]
+        remainingCoilScaling = doubleCoilScaling[1:]
+        # TODO What if I scaled this exponentially towards the yoke.
+        #  Answer: Scalar has a huge effect on the airgap plot even though we ignored the first coil scaling to deduce that it is not about the boundary equation.
+        #  This means that something is blocking the mag field cross the boundary OR the value isnt high enough for the non BC scalars.
+        # scalar = 1
+        # doubleCoilScaling = np.append(borderCoilScaling, np.multiply(remainingCoilScaling, np.array([scalar]*len(remainingCoilScaling))))
         if self.invertY:
             doubleCoilScaling = np.flip(doubleCoilScaling)
 
@@ -477,8 +483,11 @@ class Grid(LimMotor):
                 else:
                     self.matrix[i][j].MMF = 0.0
 
-                # # TODO - This is temp
-                # if j in self.outLower_slotsC[1]:
+                # TODO - This is temp and we want to change just the BC nodes to reinforce that just BC causes the upper slot B field in airgap to remain same
+                #   After I reinforce my prior knowledge then the question is which value is misrepresented ... is it the BC condition nodes or is it the generic conservation of flux nodes
+                #   IT REALLY NARROWS DOWN TO THAT
+
+                # if i in self.yIndexesUpperSlot and j in self.:
                 #     self.matrix[i][j].MMF *= 1
 
                 j += 1
